@@ -1,0 +1,10 @@
+# the default package dependencies
+
+torch
+torchvision
+scikit-image
+faiss-cpu
+opencv-python
+albumentations
+future>=0.17.1  # required for builtins in setup.py
+pyyaml>=3.13

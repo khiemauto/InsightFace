@@ -1,0 +1,8 @@
+graft face_recognition_sdk
+
+# Include the Requirements
+include requirements.txt
+
+prune .git
+prune temp*
+prune test*

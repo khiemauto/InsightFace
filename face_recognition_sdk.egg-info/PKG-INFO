@@ -1,0 +1,30 @@
+Metadata-Version: 2.1
+Name: face-recognition-sdk
+Version: 0.0.1
+Summary: A python package for face detection and recognition
+Home-page: https://gitlab.indatalabs.com/cv_rg/face-recognition-sdk
+Author: InData Labs
+Author-email: info@indatalabs.com
+License: UNKNOWN
+Description: ## Installation
+        
+        Clone and install dependencies for development
+        
+        ```
+        git clone git@gitlab.indatalabs.com:cv_rg/face-recognition-sdk.git
+        cd face-recognition-sdk
+        conda env create -f environment.yml
+        conda activate face_sdk
+        pre-commit install
+        git lfs install
+        python setup.py build develop
+        ```
+        
+        install only face_recognition_sdk with dependencies
+        
+        ```
+        pip install .
+        ```
+Platform: UNKNOWN
+Requires-Python: >=3.6
+Description-Content-Type: text/markdown

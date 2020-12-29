@@ -1,0 +1,24 @@
+# This is Conda environment file
+# Usage: `conda env update -f environment.yml`
+
+name: face_sdk
+
+channels:
+  - pytorch
+  - conda-forge
+
+dependencies:
+  - pip
+  - python=3.7 
+  - pytorch::pytorch
+  - pytorch::torchvision
+  - opencv
+  - git-lfs
+  - faiss-cpu
+
+  - pip:
+    - scikit-image
+    - pytest
+    - pre-commit
+    - black
+    - flake8

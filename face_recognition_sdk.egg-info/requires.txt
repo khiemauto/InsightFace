@@ -1,0 +1,8 @@
+torch
+torchvision
+scikit-image
+faiss-cpu
+opencv-python
+albumentations
+future>=0.17.1
+pyyaml>=3.13

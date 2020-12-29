@@ -22,8 +22,6 @@ GET_LIST_DEVICE_FILE = 'list_device.json'
 ap = argparse.ArgumentParser()
 ap.add_argument("-i", "--input", default="rtsp://admin:CongNghe@192.168.1.126:554/Streaming/Channels/101",
     help="path to input video")
-ap.add_argument("-r", "--recognizer", default="output/resnet.pth",
-    help="path to classifite model")
 ap.add_argument("-ln", "--label_name", default="output/label_name.json",
     help="path to label name")
 ap.add_argument("-c", "--confidence", type=float, default=0.5,
@@ -35,7 +33,6 @@ ap.add_argument("-dbp", "--db_folder_path", default="../employees/database",
 args = vars(ap.parse_args())
 
 #Load recoginer and label
-recognizer = pickle.loads(open("output/recognizer.pickle", "rb").read())
 le = pickle.loads(open("output/labelencoder.pickle", "rb").read())
 
 system = FaceRecognitionSystem()

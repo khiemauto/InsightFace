@@ -5,6 +5,7 @@ from torchvision import transforms
 from . import nets
 
 from ..base_embedder import BaseFaceEmbedder
+from torch2trt import torch2trt
 
 
 class InsightFaceEmbedder(BaseFaceEmbedder):
@@ -27,6 +28,9 @@ class InsightFaceEmbedder(BaseFaceEmbedder):
 
         self.embedder.to(self.device)
         self.embedder.eval()
+
+        x = torch.ones((1,3,112,112)).to(self.device)
+        self.embedder = torch2trt(self.embedder, [x])
 
         mean = [0.5] * 3
         std = [0.5 * 256 / 255] * 3

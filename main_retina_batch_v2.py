@@ -34,10 +34,6 @@ ap.add_argument("-dbp", "--db_folder_path", default="../employees/database",
     help="path to save database")
 args = vars(ap.parse_args())
 
-#Load recoginer and label
-recognizer = pickle.loads(open("output/recognizer.pickle", "rb").read())
-le = pickle.loads(open("output/labelencoder.pickle", "rb").read())
-
 system = FaceRecognitionSystem()
 
 folders_path = args["folders_path"]
@@ -64,8 +60,10 @@ def initiation() -> Tuple[dict, dict]:
     face_datas =  web_server_interface.get_infor(GET_FACE_INFO_URL, GET_FACE_INFO_FILE)
     cam_dicts = {}
     face_dicts = {}
-    for camera_data in camera_datas:
-        cam_dicts[camera_data['DeviceId']] = camera_data['LinkRTSP']
+    for i, camera_data in enumerate(camera_datas):
+        if i == 0:
+            cam_dicts[camera_data['DeviceId']] = camera_data['LinkRTSP']
+            # cam_dicts[camera_data['DeviceId']] = 1
 
     for face_data in face_datas:
         face_dicts[face_data["StaffCode"]] = face_data
@@ -211,7 +209,7 @@ def tracking_thread_fun():
             cv2.imshow(str(deviceIdList[i]), cv2.resize(frame,(640,480)))
             cv2.waitKey(1)
 
-        # print("TotalTime:",time.time() - totalTime)
+        print("TotalTime:",time.time() - totalTime)
 
 def add_object_queue(staffId: str, face_id: int, device_id: str, track_time, face_img: np.array):
     data = {'EventId': "1",

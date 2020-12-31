@@ -12,6 +12,7 @@ from .dependencies.retinaface import RetinaFace as ModelClass
 from face_recognition_sdk.utils.load_utils import load_model
 from .dependencies.utils import decode, decode_landm, py_cpu_nms
 from .dependencies.prior_box import PriorBox
+from torch2trt import torch2trt
 
 model_urls = {
     "res50": "https://face-demo.indatalabs.com/weights/Resnet50_Final.pth",
@@ -40,6 +41,10 @@ class RetinaFace(BaseFaceDetector):
         self.model = load_model(self.model, model_urls[backbone], True if self.config["device"] == "cpu" else False)
         self.model.eval()
         self.model = self.model.to(self.device)
+
+        x = torch.ones((1,3,224,224)).to(self.device)
+        self.model = torch2trt(self.model, [x])
+
         self.model_input_shape = None
         self.resize_scale = None
 

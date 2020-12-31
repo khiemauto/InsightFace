@@ -3,12 +3,12 @@ detector:
   nms_threshold: 0.5
   conf_threshold: 0.9
   device: cuda # cpu, cuda
-  architecture: res50 # res50 (ResNet 50), mnet1 (mobilenet1)
+  architecture: mnet1 # res50 (ResNet 50), mnet1 (mobilenet1)
 embedder:
   image_size: 112
   descriptor_size: &descriptor_size 512
   device: cuda # cpu, cuda
-  architecture: iresnet100 # iresnet100, iresnet50, iresnet34
+  architecture: iresnet50 # iresnet100, iresnet50, iresnet34
 attributes:
   architecture: res18 # res18, mbnet2
   device: cuda # cpu, cuda

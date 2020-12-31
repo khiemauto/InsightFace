@@ -1,14 +1,30 @@
+'''
+Face recognition
+Author: Khiem Tran
+Email: khiembka1992@gmail.com
+Date: 2020/12/31
+Version: V2.0
+'''
 import queue, cv2, argparse, pickle, time, datetime, math, threading,requests, json, torch, os
+from typing import Tuple
 import numpy as np
 from api.controler import config_controller
 from core.helper import create_url
 from flask import Flask
 from PIL import Image
 from face_recognition_sdk.utils.database import FaceRecognitionSystem
+from api import web_server_interface
 
 INDEX_DEVICE_ID = 0
 INDEX_CAM_URL = 1
 INDEX_VIDEOCAPTURE = 1
+
+
+GET_FACE_INFO_URL = 'get_face_info'
+GET_FACE_INFO_FILE = 'face_info.json'
+
+GET_LIST_DEVICE_URL = 'get_list_device'
+GET_LIST_DEVICE_FILE = 'list_device.json'
 
 ap = argparse.ArgumentParser()
 ap.add_argument("-i", "--input", default="rtsp://admin:CongNghe@192.168.1.126:554/Streaming/Channels/101",
@@ -25,10 +41,6 @@ ap.add_argument("-dbp", "--db_folder_path", default="../employees/database",
     help="path to save database")
 args = vars(ap.parse_args())
 
-#Load recoginer and label
-recognizer = pickle.loads(open("output/recognizer.pickle", "rb").read())
-le = pickle.loads(open("output/labelencoder.pickle", "rb").read())
-
 system = FaceRecognitionSystem()
 
 folders_path = args["folders_path"]
@@ -44,55 +56,44 @@ batch_size = 1
 stream_queue = queue.Queue(maxsize=15*batch_size)
 object_queue = queue.Queue(maxsize=15*batch_size)
 
-with open(args["label_name"]) as json_file:
-    label_name = json.load(json_file)
+cam_infos = {} 
+face_infos = {}
 
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 print('Running on device: {}'.format(device))
 
-def initiation():
-    camera_datas = config_controller.get_config_device()
-    ret = []
-    for camera_data in camera_datas:
-        device_id = camera_data['DeviceId']
-        cam_url = camera_data['LinkRTSP']
-        ret.append([device_id, cam_url])
-    return ret
+def initiation() -> Tuple[dict, dict]:
+    camera_datas = web_server_interface.get_infor(GET_LIST_DEVICE_URL, GET_LIST_DEVICE_FILE)
+    face_datas =  web_server_interface.get_infor(GET_FACE_INFO_URL, GET_FACE_INFO_FILE)
+    cam_dicts = {}
+    face_dicts = {}
+    for i, camera_data in enumerate(camera_datas):
+        if i == 0:
+            cam_dicts[camera_data['DeviceId']] = camera_data['LinkRTSP']
+            # cam_dicts[camera_data['DeviceId']] = 1
 
-def stream_thread_fun(cam_url: str):
+    for face_data in face_datas:
+        face_dicts[face_data["StaffCode"]] = face_data
+
+    return cam_dicts, face_dicts
+
+def stream_thread_fun_oneCam(deviceID: int, camURL: str):
     global stream_queue
-    stream = cv2.VideoCapture(cam_url, cv2.CAP_FFMPEG)
-    if not stream.isOpened():
-        print("[Error] Can't connect to {}".format(cam_url))
-        return
-    
-    FrameID = 1
-    while True:
-        time.sleep(0.001)
-        (grabbed, frame) = stream.read()
-        if not grabbed:
-            continue
-
-        FrameID += 1
-        # if FrameID%5 != 0:
-        #     continue
-        while stream_queue.qsize() > 5*batch_size:
-            stream_queue.get()
-        stream_queue.put(frame)
-
-def stream_thread_fun_oneCam(cam_infor):
-    global stream_queue
-    deviceId = cam_infor[INDEX_DEVICE_ID]
-    cap = cv2.VideoCapture(cam_infor[INDEX_CAM_URL], cv2.CAP_FFMPEG)
+    deviceId = deviceID
+    cap = cv2.VideoCapture(camURL, cv2.CAP_FFMPEG)
     if cap is None or not cap.isOpened():
-        print("[Error] Can't connect to {}".format(cam_infor[INDEX_CAM_URL]))
+        print("[Error] Can't connect to {}".format(camURL))
         return
 
     FrameID = 1
+    timeStep = 1/10
+    preStep = time.time()
+
     while True:
-        time.sleep(0.001)
+        time.sleep(0.01)
         FrameID += 1
-        if FrameID%2 == 0:
+        if time.time() - preStep > timeStep:
+            preStep = time.time()
             (grabbed, frame) = cap.retrieve()
             if not grabbed:
                 continue
@@ -107,6 +108,7 @@ def stream_thread_fun_oneCam(cam_infor):
         stream_queue.put([deviceId, frame])
 
 def tracking_thread_fun():
+    global cam_infos, face_infos
     small_scale = 1
     while True:
         time.sleep(0.001)
@@ -161,11 +163,23 @@ def tracking_thread_fun():
                 if notblur < 100.0:
                     continue
 
+                #Skip face not straight
+                leftEye = landmarks[j][0]
+                rightEye = landmarks[j][1]
+                nose = landmarks[j][2]
+                
+                distLEye2Nose = np.linalg.norm(leftEye - nose)
+                distREye2Nose = np.linalg.norm(rightEye - nose)
+                
+                face_straight = 2*abs(distLEye2Nose-distREye2Nose)/(distLEye2Nose+distREye2Nose)
+                if face_straight > 0.1:
+                    continue
+                
                 boxes.append(bboxes[j])
                 points.append(landmarks[j])
                 scores.append(float(similarities[j]))
                 staffIds.append(names[j])
-                faceIds.append(label_name[names[j]]["FaceId"])
+                faceIds.append(face_infos[names[j]]["FaceId"] if names[j] in face_infos else -1)
                 faceCropList.append(small_rgbList[i][int(bboxes[j][1]):int(bboxes[j][3]), int(bboxes[j][0]):int(bboxes[j][2])])
 
                 faceW = abs(bboxes[j][2] - bboxes[j][0])
@@ -214,7 +228,7 @@ def tracking_thread_fun():
             cv2.imshow(str(deviceIdList[i]), cv2.resize(frame,(640,480)))
             cv2.waitKey(1)
 
-        # print("TotalTime:",time.time() - totalTime)
+        print("TotalTime:",time.time() - totalTime)
 
 def add_object_queue(staffId: str, face_id: int, device_id: str, track_time, face_img: np.array):
     data = {'EventId': "1",
@@ -256,7 +270,7 @@ def pushserver_thread_fun():
                 'RecordTime': object_data['RecordTime'],
                 'FaceId': object_data['FaceId']}
 
-        print("sending DeviceId: {},FaceId: {}".format(object_data["DeviceId"], object_data["FaceId"]))
+        # print("sending DeviceId: {},FaceId: {}".format(object_data["DeviceId"], object_data["FaceId"]))
         preTime = time.time()
         if object_data["FaceImg"] is None or object_data["FaceImg"].size == 0:
             continue
@@ -287,7 +301,9 @@ def pushserver_thread_fun():
         try:
             if data["FaceId"] not in lastTimeFaceID or (time.time() - lastTimeFaceID[data["FaceId"]]) > 10.0:
                 lastTimeFaceID[data["FaceId"]] = time.time()
-                requests.post(url, files=file, params=data, timeout=2.0)
+                print("sending DeviceId: {},FaceId: {}".format(data["DeviceId"], data["FaceId"]))
+                requests.post(url, files=file, params=data, timeout=2)
+                
         except requests.exceptions.HTTPError as errh:
             print ("Http Error:",errh)
         except requests.exceptions.ConnectionError as errc:
@@ -296,16 +312,18 @@ def pushserver_thread_fun():
             print ("Timeout Error:",errt)
         except requests.exceptions.RequestException as err:
             print ("OOps: Something Else",err)
+        except:
+            print ("OOps: Post error")
         print("post time: {}".format(time.time()-preTime))
 
 if __name__ == '__main__':
-    cam_infors = initiation()
-    batch_size = len(cam_infors)
+    cam_infos, face_infos = initiation()
+    batch_size = len(cam_infos)
     stream_queue = queue.Queue(maxsize=15*batch_size)
     object_queue = queue.Queue(maxsize=15*batch_size)
     stream_threads = []
-    for cam_infor in cam_infors:
-        stream_threads.append(threading.Thread(target=stream_thread_fun_oneCam, args=(cam_infor,)))
+    for deviceID, camURL in cam_infos.items():
+        stream_threads.append(threading.Thread(target=stream_thread_fun_oneCam, args=(deviceID, camURL)))
 
     tracking_thread = threading.Thread(target=tracking_thread_fun, args=())
     pushserver_thread = threading.Thread(target=pushserver_thread_fun, args=())

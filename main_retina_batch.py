@@ -137,8 +137,45 @@ def tracking_thread_fun():
 
         preTime= time.time()
 
-        for i in range(batch_size):
-            bboxes, landmarks, user_ids, similarities = system.sdk.recognize_faces(small_rgbList[i])
+        for frameID, (image, deviceId) in enumerate(zip(small_rgbList, deviceIdList)):
+            bboxes, landmarks = system.sdk.detect_faces(image)
+            bbox_keeps = []
+            landmark_keeps = []
+            for bbox, landmark in zip(bboxes, landmarks):
+                #Skip blur face
+                imgcrop = image[int(bbox[1]):int(bbox[3]), int(bbox[0]):int(bbox[2])]
+                if imgcrop is None or imgcrop.size == 0:
+                    continue
+                notblur = cv2.Laplacian(imgcrop, cv2.CV_32F).var()
+                if notblur < 100.0:
+                    continue
+
+                #Skip face not straight
+                leftEye = landmark[0]
+                rightEye = landmark[1]
+                nose = landmark[2]
+                distLEye2Nose = np.linalg.norm(leftEye - nose)
+                distREye2Nose = np.linalg.norm(rightEye - nose)
+                face_straight = 2*abs(distLEye2Nose-distREye2Nose)/(distLEye2Nose+distREye2Nose)
+                print(face_straight)
+                if face_straight > 1.0:
+                    continue
+
+                bbox_keeps.append(bbox)
+                landmark_keeps.append(landmark)
+
+            #Keeped
+            user_ids = []
+            similarities = []
+
+            for face_keypoints in landmark_keeps:
+                face = system.sdk.align_face(image, face_keypoints)
+                descriptor = system.sdk.get_descriptor(face)
+                indicies, distances = system.sdk.find_most_similar(descriptor)
+                user_ids.append(indicies[0])
+                similarities.append(distances[0])
+
+            # bboxes, landmarks, user_ids, similarities = system.sdk.recognize_faces(small_rgbList[i])
             names = [system.get_user_name(uid) for uid in user_ids]
             
             # if len(bboxes) > 0:
@@ -147,52 +184,30 @@ def tracking_thread_fun():
             #     print(names)
             #     print(similarities)
 
-            for j in range(len(bboxes)):
+            for bbox, landmark, score, name in zip(bbox_keeps, landmark_keeps, similarities, names):
+                boxes.append(bbox)
+                points.append(landmark)
+                scores.append(float(score))
+                staffIds.append(name)
+                faceIds.append(face_infos[name]["FaceId"] if name in face_infos else -1)
+                faceCropList.append(image[int(bbox[1]):int(bbox[3]), int(bbox[0]):int(bbox[2])])
 
-                #Skip blur face
-                imgcrop = small_rgbList[i][int(bboxes[j][1]):int(bboxes[j][3]), int(bboxes[j][0]):int(bboxes[j][2])]
-                if imgcrop is None or imgcrop.size == 0:
-                    continue
-                notblur = cv2.Laplacian(imgcrop, cv2.CV_32F).var()
-                if notblur < 100.0:
-                    continue
+                faceW = abs(bbox[2] - bbox[0])
+                faceH = abs(bbox[3] - bbox[1])
+                expandLeft = max(0, bbox[0] - faceW/3)
+                expandTop = max(0, bbox[1] - faceH/3)
+                expandRight = min(bbox[2] + faceW/3, image.shape[1])
+                expandBottom = min(bbox[3] + faceH/3, image.shape[0])
+                faceCropExpandList.append(image[int(expandTop):int(expandBottom), int(expandLeft):int(expandRight)])
 
-                #Skip face not straight
-                leftEye = landmarks[j][0]
-                rightEye = landmarks[j][1]
-                nose = landmarks[j][2]
-                
-                distLEye2Nose = np.linalg.norm(leftEye - nose)
-                distREye2Nose = np.linalg.norm(rightEye - nose)
-                
-                face_straight = 2*abs(distLEye2Nose-distREye2Nose)/(distLEye2Nose+distREye2Nose)
-                print(face_straight)
-
-                if face_straight > 1.0:
-                    continue
-
-                boxes.append(bboxes[j])
-                points.append(landmarks[j])
-                scores.append(float(similarities[j]))
-                staffIds.append(names[j])
-                faceIds.append(face_infos[names[j]]["FaceId"] if names[j] in face_infos else -1)
-                faceCropList.append(small_rgbList[i][int(bboxes[j][1]):int(bboxes[j][3]), int(bboxes[j][0]):int(bboxes[j][2])])
-
-                faceW = abs(bboxes[j][2] - bboxes[j][0])
-                faceH = abs(bboxes[j][3] - bboxes[j][1])
-                expandLeft = max(0, bboxes[j][0] - faceW/3)
-                expandTop = max(0, bboxes[j][1] - faceH/3)
-                expandRight = min(bboxes[j][2] + faceW/3, small_rgbList[i].shape[1])
-                expandBottom = min(bboxes[j][3] + faceH/3,small_rgbList[i].shape[0])
-                faceCropExpandList.append(small_rgbList[i][int(expandTop):int(expandBottom), int(expandLeft):int(expandRight)])
-
-                boxframeID.append(i)
-                boxDeviceID.append(deviceIdList[i])
+                boxframeID.append(frameID)
+                boxDeviceID.append(deviceId)
         
         if len(boxes) == 0:
             for i, frame in enumerate(frameList):
                 cv2.imshow(str(deviceIdList[i]), cv2.resize(frame,(640,480)))
                 cv2.waitKey(1)    
+            print("TotalTime:",time.time() - totalTime)
             continue
         
         boxes = (np.array(boxes)/small_scale)
@@ -224,7 +239,7 @@ def tracking_thread_fun():
             cv2.imshow(str(deviceIdList[i]), cv2.resize(frame,(640,480)))
             cv2.waitKey(1)
 
-        # print("TotalTime:",time.time() - totalTime)
+        print("TotalTime:",time.time() - totalTime)
 
 def add_object_queue(staffId: str, face_id: int, device_id: str, track_time, face_img: np.array):
     data = {'EventId': "1",

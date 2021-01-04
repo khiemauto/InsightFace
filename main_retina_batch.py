@@ -147,19 +147,41 @@ def tracking_thread_fun():
                 if imgcrop is None or imgcrop.size == 0:
                     continue
                 notblur = cv2.Laplacian(imgcrop, cv2.CV_32F).var()
-                if notblur < 100.0:
+                
+                #Hyperbol blur
+                faceW = abs(bbox[2] - bbox[0])
+                faceH = abs(bbox[3] - bbox[1])
+                # print(faceW*faceH, notblur)
+                t = faceW*faceH
+                qi = 1345.33325
+                b = 0.52109685
+                di =  2.3316e-04
+                threshblur = qi/((1.0+b*di*t)**(1.0/max(b, 1.e-50)))
+
+                if notblur < 0.8*threshblur:
                     continue
 
-                #Skip face not straight
-                leftEye = landmark[0]
-                rightEye = landmark[1]
-                nose = landmark[2]
-                distLEye2Nose = np.linalg.norm(leftEye - nose)
-                distREye2Nose = np.linalg.norm(rightEye - nose)
-                face_straight = 2*abs(distLEye2Nose-distREye2Nose)/(distLEye2Nose+distREye2Nose)
-                print(face_straight)
-                if face_straight > 1.0:
+                '''
+                #Face straight
+                cnt = landmark.reshape(5,2)
+
+                leftEye = cnt[0]
+                rightEye = cnt[1]
+                Nose = cnt[2]
+                lefMouth = cnt[3]
+                rightMouth = cnt[4]
+
+                distLEye2Nose = np.linalg.norm(leftEye - Nose)
+                distREye2Nose = np.linalg.norm(rightEye - Nose)
+                disEyeMouth = np.linalg.norm((leftEye + rightEye)/2 - (lefMouth + rightMouth)/2)
+                disTwoEye =  np.linalg.norm(leftEye - rightEye)
+
+                verticalStraight = 2*abs(distLEye2Nose-distREye2Nose)/(distLEye2Nose+distREye2Nose)
+                hoticalStraight = disTwoEye/disEyeMouth
+                print(verticalStraight, hoticalStraight)
+                if verticalStraight > 0.7 or hoticalStraight < 0.2 or hoticalStraight > 2.0  :
                     continue
+                '''
 
                 bbox_keeps.append(bbox)
                 landmark_keeps.append(landmark)
@@ -170,6 +192,7 @@ def tracking_thread_fun():
 
             for face_keypoints in landmark_keeps:
                 face = system.sdk.align_face(image, face_keypoints)
+                # cv2.imshow("face", face)
                 descriptor = system.sdk.get_descriptor(face)
                 indicies, distances = system.sdk.find_most_similar(descriptor)
                 user_ids.append(indicies[0])
@@ -207,7 +230,7 @@ def tracking_thread_fun():
             for i, frame in enumerate(frameList):
                 cv2.imshow(str(deviceIdList[i]), cv2.resize(frame,(640,480)))
                 cv2.waitKey(1)    
-            print("TotalTime:",time.time() - totalTime)
+            # print("TotalTime:",time.time() - totalTime)
             continue
         
         boxes = (np.array(boxes)/small_scale)
@@ -218,7 +241,7 @@ def tracking_thread_fun():
 
         preTime= time.time()
 
-        print(scores)
+        # print(scores)
         # print(index)
         for i, (box, staffId, faceId, score) in enumerate(zip(boxes, staffIds, faceIds, scores)):
             if score > 0.6:
@@ -239,7 +262,7 @@ def tracking_thread_fun():
             cv2.imshow(str(deviceIdList[i]), cv2.resize(frame,(640,480)))
             cv2.waitKey(1)
 
-        print("TotalTime:",time.time() - totalTime)
+        # print("TotalTime:",time.time() - totalTime)
 
 def add_object_queue(staffId: str, face_id: int, device_id: str, track_time, face_img: np.array):
     data = {'EventId': "1",
@@ -261,7 +284,7 @@ def add_object_queue(staffId: str, face_id: int, device_id: str, track_time, fac
     else:
         if face_id != -1:
             object_queue.put(data)
-    print("PutTime:", time.time()-preTime)
+    # print("PutTime:", time.time()-preTime)
     preTime = time.time()
     
 def pushserver_thread_fun():
@@ -287,7 +310,7 @@ def pushserver_thread_fun():
 
         object_data["FaceImg"] = cv2.cvtColor(object_data["FaceImg"], cv2.COLOR_RGB2BGR)
         _, buf = cv2.imencode(".jpg", object_data["FaceImg"])
-        print("encode time: {}".format(time.time()-preTime))
+        # print("encode time: {}".format(time.time()-preTime))
         filename = datetime.datetime.now().strftime("%Y%m%d%H%M%S%f") + ".jpg"
 
         if object_data['FaceId'] == -1:
@@ -311,8 +334,8 @@ def pushserver_thread_fun():
         try:
             if data["FaceId"] not in lastTimeFaceID or (time.time() - lastTimeFaceID[data["FaceId"]]) > 10.0:
                 lastTimeFaceID[data["FaceId"]] = time.time()
-                print("sending DeviceId: {},FaceId: {}".format(object_data["DeviceId"], object_data["FaceId"]))
-                requests.post(url, files=file, params=data, timeout=2)
+                # print("sending DeviceId: {},FaceId: {}".format(object_data["DeviceId"], object_data["FaceId"]))
+                requests.post(url, files=file, params=data, timeout=3)
         except requests.exceptions.HTTPError as errh:
             print ("Http Error:",errh)
         except requests.exceptions.ConnectionError as errc:
@@ -323,7 +346,7 @@ def pushserver_thread_fun():
             print ("OOps: Something Else",err)
         except:
             print ("OOps: Post error")
-        print("post time: {}".format(time.time()-preTime))
+        # print("post time: {}".format(time.time()-preTime))
 
 if __name__ == '__main__':
     cam_infos, face_infos = initiation()

@@ -1,18 +1,14 @@
-import argparse
-import asyncio
 import os
 import shutil
 from distutils.command.upload import upload
 from fileinput import filename
 from io import BytesIO
-from os.path import exists as exists
 from os.path import join as joinpath
 from random import random
 from typing import List
 
 import cv2
 import numpy as np
-import uvicorn
 from face_recognition_sdk.utils.database import FaceRecognitionSystem
 from face_recognition_sdk.utils.draw_utils import draw_boxes, draw_landmarks
 from face_recognition_sdk.utils.io_utils import (read_image, read_yaml,
@@ -24,15 +20,17 @@ from requests import request
 from starlette.requests import Request
 from starlette.responses import StreamingResponse
 
+import share_param
+
 
 class FaceRecogAPI(FastAPI):
-    def __init__(self, system: FaceRecognitionSystem, folders_path: str, db_folder_path:str, title:str="FaceRecogAPI") -> None:
+    def __init__(self, system: FaceRecognitionSystem, folders_path: str, db_folder_path: str, title: str = "FaceRecogAPI") -> None:
         super().__init__(title=title)
         self.system = system
         self.db_folder_path = db_folder_path
         self.title = title
         self.dataset_dir = folders_path
-        
+
         @self.get('/')
         async def home():
             return "Face Recognition API"
@@ -54,47 +52,54 @@ class FaceRecogAPI(FastAPI):
             print(data)
             return data
 
-        @self.post("/api/add/{user_id}/images", status_code=status.HTTP_201_CREATED)
-        async def create_upload_file(user_id, uploaded_files: UploadFile = File(...)):
-            if user_id not in os.listdir(self.dataset_dir):
-                return{"status': 'User id:{} not found".format(user_id)}
+        @self.post("/api/add/image", status_code=status.HTTP_201_CREATED)
+        async def create_upload_file(user_name, uploaded_file: UploadFile = File(...)):
+            if user_name not in os.listdir(self.dataset_dir):
+                return {f"status': 'User id:{user_name} not found"}
             else:
-                # filenames = [file.filename for file in uploaded_files]
-                # location = joinpath(dataset_dir, user_id)
-
-                file_location = joinpath(self.dataset_dir, user_id, uploaded_files.filename)
+                file_location = joinpath(
+                    self.dataset_dir, user_name, uploaded_file.filename)
+                print(file_location)
                 with open(file_location, "wb+") as file_object:
-                    shutil.copyfileobj(uploaded_files, file_object)
+                    # print(len(uploaded_file.file))
+                    shutil.copyfileobj(uploaded_file.file, file_object)
+                return {"info": f"file '{uploaded_file.filename}' saved at '{file_location}'"}
 
-                return {"info": f"file '{uploaded_files}' saved at '{file_location}'"}
-
-
-        @self.post("/api/add/image/{user_id}/database")
-        async def add_database(user_id, uploaded_file: UploadFile = File(...)):
+        @self.post("/api/add/image/database", status_code=status.HTTP_201_CREATED)
+        async def add_database(user_name, uploaded_file: UploadFile = File(...)):
             """ Can only add 1 image at a time"""
-            if user_id not in os.listdir(self.dataset_dir):
-                return{"status': 'User id:{} not found".format(user_id)}
+            if user_name not in os.listdir(self.dataset_dir):
+                return{"status': 'User id:{} not found".format(user_name)}
             else:
-                file_location = joinpath(self.dataset_dir, user_id, uploaded_file.filename)
+                file_location = joinpath(
+                    self.dataset_dir, user_name, uploaded_file.filename)
                 with open(file_location, "wb+") as file_object:
                     shutil.copyfileobj(uploaded_file.file, file_object)
                 image = read_image(file_location)
-                self.system.sdk.add_photo_by_user_id(image, user_id)
-                return{
-                    "status": uploaded_file.filename,
-                    "add to": user_id
-                }
 
+                user_id = [
+                    id for id, name in self.system.user_id_to_name.items() if name == user_name][0]
+                print(user_id)
+                self.system.sdk.add_photo_by_user_id(image, user_id)
+                return {
+                    "status": uploaded_file.filename,
+                    "add to": user_name
+                }
 
         @self.get("/api/database/reload")
         async def reset_database():
             try:
+                share_param.detect_lock.acquire()
+                share_param.recog_lock.acquire()
                 self.system.create_database_from_folders(self.dataset_dir)
                 self.system.save_database(self.db_folder_path)
-                return {" create new database"}
+                self.system.load_database(db_folder_path)
+                share_param.recog_lock.release()
+                share_param.detect_lock.release()
+                return {"create new database"}
             except Exception as e:
+                print(e)
                 return {e}
-
 
         @self.get("api/get/{user_id}/image")
         async def get_image(user_id):
@@ -104,8 +109,6 @@ class FaceRecogAPI(FastAPI):
                 cv2img = self.get_random_image(user_id)
                 res, im_png = cv2.imencode(".png", cv2img)
                 return StreamingResponse(BytesIO(im_png.tobytes()), media_type="image/png")
-            
-
 
         @self.post("/api/add/{user_id}/name")
         async def add_user(user_id):
@@ -116,7 +119,6 @@ class FaceRecogAPI(FastAPI):
                 os.makedirs(user_id)
                 # self.system.sdk.add_descriptor(user_id)
                 return {"folder create {}".format(user_id)}
-
 
         @self.post("/api/delete/{user_id}/folder")
         async def delete_user(user_id):
@@ -129,7 +131,6 @@ class FaceRecogAPI(FastAPI):
                     "folder {} remove".format(user_id)
                 }
 
-
         @self.post("api/delete/{user_id}/database")
         async def delete_user_database(user_id):
             if user_id not in os.listdir(self.dataset_dir):
@@ -140,7 +141,6 @@ class FaceRecogAPI(FastAPI):
                     "user id {} delete from database".format(user_id)
                 }
 
-
         @self.get("/find/{user_id}")
         async def find(user_id):
             if user_id not in os.listdir(self.dataset_dir):
@@ -150,13 +150,12 @@ class FaceRecogAPI(FastAPI):
                     "User_id: {}".format(user_id)
                 }
 
-
-        @self.get("find/database/{user_id}")
-        async def find_database_user(user_id):
-            if user_id in self.get_list_of_id():
-                return{True}
-            else:
-                return{False}
+        # @self.get("find/database/{user_id}")
+        # async def find_database_user(user_id):
+        #     if user_id in self.get_list_of_id():
+        #         return{True}
+        #     else:
+        #         return{False}
 
     def buffer_to_image(self, imgbuffer):
         image = np.frombuffer(imgbuffer, dtype="uint8")
@@ -164,7 +163,7 @@ class FaceRecogAPI(FastAPI):
         return image
 
     def get_random_image(self, user_id):
-        dirpath = joinpath(self.dataset_dir,user_id)
+        dirpath = joinpath(self.dataset_dir, user_id)
         dir = os.listdir(dirpath)
         return random.choice(dir)
 
@@ -173,7 +172,8 @@ class FaceRecogAPI(FastAPI):
         if binaryimg is None:
             return data
         image = self.buffer_to_image(binaryimg)
-        bboxes, landmarks, user_ids, similarities = self.system.sdk.recognize_faces(image)
+        bboxes, landmarks, user_ids, similarities = self.system.sdk.recognize_faces(
+            image)
         names = [self.system.get_user_name(uid) for uid in user_ids]
 
         names_score = {}
@@ -184,7 +184,7 @@ class FaceRecogAPI(FastAPI):
         return names_score
 
     def get_list_of_id(self):
-        file_path = 'Databases/id_to_username.pkl'
+        file_path = joinpath(self.db_folder_path,"id_to_username.pkl")
         import pickle
         with open(file_path, 'rb') as pickle_file:
             data = pickle.load(pickle_file)

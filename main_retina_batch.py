@@ -19,8 +19,10 @@ from PIL import Image
 from face_recognition_sdk.utils.database import FaceRecognitionSystem
 import core
 import uvicorn
+import inspect
 
 from api.rest import FaceRecogAPI
+import share_param
 
 GET_FACE_INFO_URL = 'get_face_info'
 GET_FACE_INFO_FILE = 'face_info.json'
@@ -28,30 +30,32 @@ GET_FACE_INFO_FILE = 'face_info.json'
 GET_LIST_DEVICE_URL = 'get_list_device'
 GET_LIST_DEVICE_FILE = 'list_device.json'
 
-# ap = argparse.ArgumentParser()
-# ap.add_argument("-fp", "--folders_path", default=None,
-#                 help="path to save folders with images")
-# ap.add_argument("-dbp", "--db_folder_path", default="database",
-#                 help="path to save database")
-# args = vars(ap.parse_args())
+ap = argparse.ArgumentParser()
+ap.add_argument("-fp", "--folders_path", default=None,
+                help="path to save folders with images")
+ap.add_argument("-dbp", "--db_folder_path", default="database",
+                help="path to save database")
+ap.add_argument("-rdb", "--reload_db", type=int, default=0,
+                help="reload database")
+args = vars(ap.parse_args())
 
-args = {
-    "folders_path": None,
-    "db_folder_path": "database"
-}
+# args = {
+#     "folders_path": "dataset/photos",
+#     "reload_db": False,
+#     "db_folder_path": "database"
+# }
 
-system = FaceRecognitionSystem()
 
 folders_path = args["folders_path"]
 db_folder_path = args["db_folder_path"]
 
 # create, save and load database initialized from folders containing user photos
-if folders_path is not None:
-    system.create_database_from_folders(folders_path)
-    system.save_database(db_folder_path)
-system.load_database(db_folder_path)
+if args["reload_db"]:
+    share_param.system.create_database_from_folders(folders_path)
+    share_param.system.save_database(db_folder_path)
+share_param.system.load_database(db_folder_path)
 
-app = FaceRecogAPI(system, folders_path, db_folder_path)
+app = FaceRecogAPI(share_param.system, folders_path, db_folder_path)
 # rest.system = system
 # rest.folders_path = folders_path  # args.folders_path
 # rest.db_folder_path = db_folder_path  # args.db_folder_path
@@ -128,6 +132,7 @@ def tracking_thread_fun():
     global cam_infos, face_infos
     small_scale = 1
     while bRunning:
+        # print( 'line', inspect.getframeinfo(inspect.currentframe()).lineno)
         time.sleep(0.001)
         totalTime = time.time()
         if stream_queue.qsize() < batch_size:
@@ -161,9 +166,10 @@ def tracking_thread_fun():
         faceCropExpandList = []
 
         preTime = time.time()
-
         for frameID, (image, deviceId) in enumerate(zip(small_rgbList, deviceIdList)):
-            bboxes, landmarks = system.sdk.detect_faces(image)
+            share_param.detect_lock.acquire()
+            bboxes, landmarks = share_param.system.sdk.detect_faces(image)
+            share_param.detect_lock.release()
             bbox_keeps = []
             landmark_keeps = []
             for bbox, landmark in zip(bboxes, landmarks):
@@ -215,22 +221,22 @@ def tracking_thread_fun():
             # Keeped
             user_ids = []
             similarities = []
-
             for face_keypoints in landmark_keeps:
-                face = system.sdk.align_face(image, face_keypoints)
-                descriptor = system.sdk.get_descriptor(face)
-                indicies, distances = system.sdk.find_most_similar(descriptor)
+                face = share_param.system.sdk.align_face(image, face_keypoints)
+                share_param.recog_lock.acquire()
+                descriptor = share_param.system.sdk.get_descriptor(face)
+                indicies, distances = share_param.system.sdk.find_most_similar(descriptor)
+                share_param.recog_lock.release()
                 user_ids.append(indicies[0])
                 similarities.append(distances[0])
 
-            names = [system.get_user_name(uid) for uid in user_ids]
+            names = [share_param.system.get_user_name(uid) for uid in user_ids]
 
             # if len(bboxes) > 0:
             #     print(bboxes)
             #     print(landmarks)
             #     print(names)
             #     print(similarities)
-
             for bbox, landmark, score, name in zip(bbox_keeps, landmark_keeps, similarities, names):
                 boxes.append(bbox)
                 points.append(landmark)
@@ -252,7 +258,6 @@ def tracking_thread_fun():
 
                 boxframeID.append(frameID)
                 boxDeviceID.append(deviceId)
-
         if len(boxes) == 0:
             for i, frame in enumerate(frameList):
                 custom_imshow(str(deviceIdList[i]),

@@ -80,8 +80,8 @@ class FaceRecognitionSDK:
 
         logger.debug("Finish face extraction")
         return descriptor, face_coordinates
-
-    def add_photo_by_user_id(self, image: np.ndarray, user_id: int):
+    
+    def add_photo_by_photo_id(self, image: np.ndarray, photo_id: int):
         """
         Adds photo of the user to the database.
 
@@ -89,27 +89,27 @@ class FaceRecognitionSDK:
             image: numpy image (H,W,3) in RGB format.
             user_id: id of the user.
         """
-        logger.info(f"Adding photo of user with user_id={user_id}")
+        logger.info(f"Adding photo with photo_id={photo_id}")
         descriptor, _ = self.extract_face_descriptor(image)
-        self.add_descriptor(descriptor, user_id)
-        logger.debug(f"Finish adding user photo for user_id={user_id}")
+        self.add_descriptor(descriptor, photo_id)
+        logger.debug(f"Finish adding photo for photo_id={photo_id}")
 
-    def add_descriptor(self, descriptor: np.ndarray, user_id: int) -> Tuple[None, int]:
+    def add_descriptor(self, descriptor: np.ndarray, photo_id: int) -> Tuple[None, int]:
         """
-        Add descriptor for user specified by 'user_id'.
+        Add descriptor specified by 'photo_id'.
 
         Args:
             descriptor: descriptor of the photo (face) to use as a search query.
-            user_id: if of the user
+            descriptor_id: id of descriptor
 
         Returns:
 
         """
-        logger.info(f"Adding descriptor for user with user_id={user_id}")
-        self.database.add_descriptor(descriptor, user_id)
-        logger.debug(f"Finish adding descriptor for user with user_id={user_id}")
+        logger.info(f"Adding descriptor with photo_id={photo_id}")
+        self.database.add_descriptor(descriptor, photo_id)
+        logger.debug(f"Finish adding descriptor with photo_id={photo_id}")
 
-    def delete_photo_by_id(self, photo_id: int) -> None:
+    def delete_photo_by_photo_id(self, photo_id: int) -> None:
         """
         Removes photo (descriptor) from the database.
 
@@ -117,7 +117,9 @@ class FaceRecognitionSDK:
             photo_id: id of the photo in the database.
 
         """
-        raise NotImplementedError()
+        logger.info(f"Deleting photo with photo_id={photo_id} from faces descriptors database.")
+        self.database.remove_descriptor(photo_id)
+        logger.debug(f"Finish deleting photo with photo_id={photo_id} from faces descriptors database.")
 
     def delete_user_by_id(self, user_id: int) -> None:
         """
@@ -126,9 +128,8 @@ class FaceRecognitionSDK:
         Args:
             user_id: id of the user.
         """
-        logger.info(f"Deleting user with user_id={user_id} from faces descriptors database.")
-        self.database.remove_user(user_id)
-        logger.debug(f"Finish deleting user with user_id={user_id} from faces descriptors database.")
+        raise NotImplementedError()
+
 
     def find_most_similar(self, descriptor: np.ndarray, top_k: int = 1):
         """
@@ -219,8 +220,6 @@ class FaceRecognitionSDK:
         Returns:
             similarity: similarity score. Value - from 0 to 1.
         """
-        # similarity = np.dot(first_descriptor,second_descriptor)/(np.linalg.norm(first_descriptor)*np.linalg.norm(second_descriptor))
-        # using cosine similarity for calculation
         similarity = np.dot(first_descriptor, second_descriptor)
         return similarity
 

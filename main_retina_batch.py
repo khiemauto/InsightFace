@@ -39,12 +39,6 @@ ap.add_argument("-rdb", "--reload_db", type=int, default=0,
                 help="reload database")
 args = vars(ap.parse_args())
 
-# args = {
-#     "folders_path": "dataset/photos",
-#     "reload_db": False,
-#     "db_folder_path": "database"
-# }
-
 
 folders_path = args["folders_path"]
 db_folder_path = args["db_folder_path"]
@@ -219,7 +213,7 @@ def tracking_thread_fun():
                 landmark_keeps.append(landmark)
 
             # Keeped
-            user_ids = []
+            names = []
             similarities = []
             for face_keypoints in landmark_keeps:
                 face = share_param.system.sdk.align_face(image, face_keypoints)
@@ -227,10 +221,9 @@ def tracking_thread_fun():
                 descriptor = share_param.system.sdk.get_descriptor(face)
                 indicies, distances = share_param.system.sdk.find_most_similar(descriptor)
                 share_param.recog_lock.release()
-                user_ids.append(indicies[0])
+                user_name = share_param.system.get_user_name(indicies[0])
+                names.append(user_name)
                 similarities.append(distances[0])
-
-            names = [share_param.system.get_user_name(uid) for uid in user_ids]
 
             # if len(bboxes) > 0:
             #     print(bboxes)

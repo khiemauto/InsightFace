@@ -33,21 +33,21 @@ class FaissFaceStorage(BaseFaceStorage):
         distances, indicies = self.index.search(descriptor, top_k)
         return indicies[0], distances[0]
 
-    def add_descriptor(self, descriptor: np.ndarray, user_id: int) -> None:
-        """Add descriptor with specified user_id.
+    def add_descriptor(self, descriptor: np.ndarray, photo_id: int) -> None:
+        """Add descriptor with specified photo_id.
 
         Args:
             descriptor: np.array [1,D] of type float32
-            user_id: id of the user
+            photo_id: id of the photo
         """
         if descriptor.ndim == 1:
             descriptor = np.expand_dims(descriptor, 0)
-        self.index.add_with_ids(descriptor, np.array([user_id]))
+        self.index.add_with_ids(descriptor, np.array([photo_id]))
 
     def remove_descriptor(self, descriptor_id: int) -> None:
-        """Updates user id list of descriptor ids."""
-        raise NotImplementedError
+        """Removes descriptor ids from the database."""
+        self.index.remove_ids(np.array([descriptor_id]))
 
     def remove_user(self, user_id: int) -> None:
         """Removes all user descriptors from the database."""
-        self.index.remove_ids(np.array([user_id]))
+        raise NotImplementedError

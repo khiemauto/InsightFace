@@ -1,3 +1,4 @@
+#python main_retina_batch.py -dbp database -fp dataset/photos
 import queue, cv2, argparse, pickle, time, datetime, math, threading,requests, json, torch, os
 from typing import Tuple
 import numpy as np
@@ -314,7 +315,7 @@ def pushserver_thread_fun():
         filename = datetime.datetime.now().strftime("%Y%m%d%H%M%S%f") + ".jpg"
 
         if object_data['FaceId'] == -1:
-            pathfile = "dataset/unknows/" + filename
+            pathfile = "dataset/unknowns/" + filename
             path = os.path.dirname(pathfile)
             if not os.path.exists(path):
                 os.makedirs(path)
@@ -322,7 +323,7 @@ def pushserver_thread_fun():
                 f.write(buf)
             # continue
         else:
-            pathfile = "dataset/knows/" + object_data["StaffId"] + "/" + filename
+            pathfile = "dataset/knowns/" + object_data["StaffId"] + "/" + filename
             path = os.path.dirname(pathfile)
             if not os.path.exists(path):
                 os.makedirs(path)

@@ -23,6 +23,7 @@ import inspect
 
 from api.rest import FaceRecogAPI
 import share_param
+import io
 
 GET_FACE_INFO_URL = 'get_face_info'
 GET_FACE_INFO_FILE = 'face_info.json'
@@ -38,10 +39,10 @@ ap.add_argument("-dbp", "--db_folder_path", default="database",
 ap.add_argument("-rdb", "--reload_db", type=int, default=0,
                 help="reload database")
 args = vars(ap.parse_args())
-
-
 folders_path = args["folders_path"]
 db_folder_path = args["db_folder_path"]
+
+share_param.system = FaceRecognitionSystem(folders_path)
 
 # create, save and load database initialized from folders containing user photos
 if args["reload_db"]:
@@ -50,18 +51,8 @@ if args["reload_db"]:
 share_param.system.load_database(db_folder_path)
 
 app = FaceRecogAPI(share_param.system, folders_path, db_folder_path)
-# rest.system = system
-# rest.folders_path = folders_path  # args.folders_path
-# rest.db_folder_path = db_folder_path  # args.db_folder_path
 
-batch_size = 1
-stream_queue = queue.Queue(maxsize=15*batch_size)
-object_queue = queue.Queue(maxsize=15*batch_size)
-
-cam_infos = {}
-face_infos = {}
-
-bRunning = True
+share_param.bRunning = True
 
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 print('Running on device: {}'.format(device))
@@ -91,7 +82,6 @@ def initiation() -> Tuple[dict, dict]:
 
 
 def stream_thread_fun_oneCam(deviceID: int, camURL: str):
-    global stream_queue
     deviceId = deviceID
     cap = cv2.VideoCapture(camURL, cv2.CAP_FFMPEG)
     if cap is None or not cap.isOpened():
@@ -102,7 +92,7 @@ def stream_thread_fun_oneCam(deviceID: int, camURL: str):
     timeStep = 1/10
     preStep = time.time()
 
-    while bRunning:
+    while share_param.bRunning:
         time.sleep(0.01)
         FrameID += 1
         if time.time() - preStep > timeStep:
@@ -116,20 +106,19 @@ def stream_thread_fun_oneCam(deviceID: int, camURL: str):
             cap.grab()
             continue
 
-        while stream_queue.qsize() > 5*batch_size:
-            stream_queue.get()
-        stream_queue.put([deviceId, frame])
+        while share_param.stream_queue.qsize() > 5*share_param.batch_size:
+            share_param.stream_queue.get()
+        share_param.stream_queue.put([deviceId, frame])
     cap.release()
 
 
 def tracking_thread_fun():
-    global cam_infos, face_infos
     small_scale = 1
-    while bRunning:
+    while share_param.bRunning:
         # print( 'line', inspect.getframeinfo(inspect.currentframe()).lineno)
         time.sleep(0.001)
         totalTime = time.time()
-        if stream_queue.qsize() < batch_size:
+        if share_param.stream_queue.qsize() < share_param.batch_size:
             continue
         frameList = []  # [DeviceID, Image]
         rgbList = []  # [DeviceID, Image]
@@ -137,8 +126,8 @@ def tracking_thread_fun():
         preTime = time.time()
 
         deviceIdList = []
-        for i in range(batch_size):
-            deviceId, frame = stream_queue.get()
+        for i in range(share_param.batch_size):
+            deviceId, frame = share_param.stream_queue.get()
             xstart = (frame.shape[1] - frame.shape[0])//2
             frame = frame[:, xstart: xstart + frame.shape[0]]
 
@@ -235,8 +224,8 @@ def tracking_thread_fun():
                 points.append(landmark)
                 scores.append(float(score))
                 staffIds.append(name)
-                faceIds.append(face_infos[name]["FaceId"]
-                               if name in face_infos else -1)
+                faceIds.append(share_param.face_infos[name]["FaceId"]
+                               if name in share_param.face_infos else -1)
                 faceCropList.append(image[int(bbox[1]):int(
                     bbox[3]), int(bbox[0]):int(bbox[2])])
 
@@ -301,17 +290,17 @@ def add_object_queue(staffId: str, face_id: int, device_id: str, track_time, fac
             'FaceImg': face_img}
     # print(data["RecordTime"])
     preTime = time.time()
-    # print("batch_size:",batch_size)
-    while object_queue.qsize() > 10*batch_size:
-        object_queue.get()
+    # print("share_param.batch_size:",share_param.batch_size)
+    while share_param.object_queue.qsize() > 10*share_param.batch_size:
+        share_param.object_queue.get()
     # print("RemTime:", time.time()-preTime)
     preTime = time.time()
-    # print("QueueSize:", object_queue.qsize())
-    if object_queue.qsize() < 5*batch_size:
-        object_queue.put(data)
+    # print("QueueSize:", share_param.object_queue.qsize())
+    if share_param.object_queue.qsize() < 5*share_param.batch_size:
+        share_param.object_queue.put(data)
     else:
         if face_id != -1:
-            object_queue.put(data)
+            share_param.object_queue.put(data)
     # print("PutTime:", time.time()-preTime)
     preTime = time.time()
 
@@ -320,13 +309,13 @@ def pushserver_thread_fun():
     url = support.create_url("face_upload")
     print("Full", url)
     lastTimeFaceID = {}
-    while bRunning:
+    while share_param.bRunning:
         time.sleep(0.001)
-        if object_queue.empty():
+        if share_param.object_queue.empty():
             # print("object_queue empty")
             continue
 
-        object_data = object_queue.get()
+        object_data = share_param.object_queue.get()
 
         data = {'EventId': object_data['EventId'],
                 'DeviceId': object_data['DeviceId'],
@@ -382,12 +371,12 @@ def pushserver_thread_fun():
 
 
 if __name__ == '__main__':
-    cam_infos, face_infos = initiation()
-    batch_size = len(cam_infos)
-    stream_queue = queue.Queue(maxsize=15*batch_size)
-    object_queue = queue.Queue(maxsize=15*batch_size)
+    share_param.cam_infos, share_param.face_infos = initiation()
+    share_param.batch_size = len(share_param.cam_infos)
+    share_param.stream_queue = queue.Queue(maxsize=15*share_param.batch_size)
+    object_queue = queue.Queue(maxsize=15*share_param.batch_size)
     stream_threads = []
-    for deviceID, camURL in cam_infos.items():
+    for deviceID, camURL in share_param.cam_infos.items():
         if deviceID == 41:
             stream_threads.append(threading.Thread(
                 target=stream_thread_fun_oneCam, args=(deviceID, camURL)))
@@ -402,7 +391,7 @@ if __name__ == '__main__':
     pushserver_thread.start()
 
     uvicorn.run(app, host=f"0.0.0.0", port=8000)
-    bRunning = False
+    share_param.bRunning = False
     for stream_thread in stream_threads:
         stream_thread.join()
     tracking_thread.join()

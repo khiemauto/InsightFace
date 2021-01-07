@@ -46,7 +46,7 @@ class FaissFaceStorage(BaseFaceStorage):
 
     def remove_descriptor(self, descriptor_id: int) -> None:
         """Removes descriptor ids from the database."""
-        self.index.remove_ids(np.array([descriptor_id]))
+        self.index.remove_ids(np.array([descriptor_id], dtype=int))
 
     def remove_user(self, user_id: int) -> None:
         """Removes all user descriptors from the database."""

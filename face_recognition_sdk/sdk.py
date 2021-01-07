@@ -121,16 +121,6 @@ class FaceRecognitionSDK:
         self.database.remove_descriptor(photo_id)
         logger.debug(f"Finish deleting photo with photo_id={photo_id} from faces descriptors database.")
 
-    def delete_user_by_id(self, user_id: int) -> None:
-        """
-        Removes all photos of the user from the database.
-
-        Args:
-            user_id: id of the user.
-        """
-        raise NotImplementedError()
-
-
     def find_most_similar(self, descriptor: np.ndarray, top_k: int = 1):
         """
         Find most similar-looking photos (and their user id's) in the database.
@@ -181,7 +171,7 @@ class FaceRecognitionSDK:
         logger.debug("Start faces recognition.")
         bboxes, landmarks = self.detect_faces(image)
 
-        user_ids = []
+        photo_ids = []
         similarities = []
 
         for i, face_keypoints in enumerate(landmarks):
@@ -189,11 +179,11 @@ class FaceRecognitionSDK:
             face = self.align_face(image, face_keypoints)
             descriptor = self.get_descriptor(face)
             indicies, distances = self.find_most_similar(descriptor)
-            user_ids.append(indicies[0])
+            photo_ids.append(indicies[0])
             similarities.append(distances[0])
 
         logger.debug(f"Finish faces recognition. Count of processed faces: {len(bboxes)}")
-        return bboxes, landmarks, user_ids, similarities
+        return bboxes, landmarks, photo_ids, similarities
 
     def get_descriptor(self, face_image: np.ndarray) -> np.ndarray:
         """

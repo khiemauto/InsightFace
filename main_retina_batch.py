@@ -14,13 +14,12 @@ import sys
 from typing import Tuple
 import numpy as np
 from core import support
-from flask import Flask
 from PIL import Image
 from face_recognition_sdk.utils.database import FaceRecognitionSystem
 import core
 import uvicorn
 import inspect
-
+import socketserver, http.server
 from api.rest import FaceRecogAPI
 import share_param
 import io
@@ -379,21 +378,20 @@ if __name__ == '__main__':
     for deviceID, camURL in share_param.cam_infos.items():
         if deviceID == 41:
             stream_threads.append(threading.Thread(
-                target=stream_thread_fun_oneCam, args=(deviceID, camURL)))
+                target=stream_thread_fun_oneCam, daemon=True, args=(deviceID, camURL)))
             break
+    tracking_thread = threading.Thread(target=tracking_thread_fun, daemon=True, args=())
+    pushserver_thread = threading.Thread(target=pushserver_thread_fun, daemon=True, args=())
+    fileserver = socketserver.TCPServer((share_param.devconfig["FILESERVER"]["host"], share_param.devconfig["FILESERVER"]["port"]), http.server.SimpleHTTPRequestHandler)
+    file_thread = threading.Thread(target=fileserver.serve_forever, daemon=True, args=())
 
-    tracking_thread = threading.Thread(target=tracking_thread_fun, args=())
-    pushserver_thread = threading.Thread(target=pushserver_thread_fun, args=())
-
+    file_thread.start()
     for stream_thread in stream_threads:
         stream_thread.start()
     tracking_thread.start()
     pushserver_thread.start()
 
-    uvicorn.run(app, host=f"0.0.0.0", port=8000)
+    uvicorn.run(app, host=share_param.devconfig["APISERVER"]["host"], port=share_param.devconfig["APISERVER"]["port"])
     share_param.bRunning = False
-    for stream_thread in stream_threads:
-        stream_thread.join()
-    tracking_thread.join()
-    pushserver_thread.join()
+    fileserver.shutdown()
     cv2.destroyAllWindows()

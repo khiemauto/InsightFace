@@ -22,7 +22,12 @@
         "print": true,
         "face_reg_score": 0.6
     },
+    "APISERVER": {
+        "host": "192.168.1.111",
+        "port": 8000
+    },
     "FILESERVER": {
-        "endpoint": "192.168.1.111:8001"
+        "host": "192.168.1.111",
+        "port": 8001
     }
 }

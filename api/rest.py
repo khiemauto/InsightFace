@@ -1,30 +1,13 @@
-from multiprocessing import context
 import os
-import shutil
-from distutils.command.upload import upload
-from fileinput import filename
-from io import BytesIO
-from os.path import join as joinpath
-from random import random
 from typing import List
 
-import cv2
-import numpy as np
 from face_recognition_sdk.utils.database import FaceRecognitionSystem
 from face_recognition_sdk.utils import io_utils
 
-from fastapi import FastAPI, File, Response, UploadFile, status
-from matplotlib import use
-from PIL import Image
-from requests import request
-from starlette.requests import Request
-from starlette.responses import StreamingResponse
-from fastapi.responses import HTMLResponse, PlainTextResponse, JSONResponse
-
+from fastapi import FastAPI, File, UploadFile, status
+from fastapi.responses import HTMLResponse, PlainTextResponse, JSONResponse, StreamingResponse
 
 import share_param
-import io
-import glob
 
 
 class FaceRecogAPI(FastAPI):
@@ -34,16 +17,24 @@ class FaceRecogAPI(FastAPI):
         self.db_folder_path = db_folder_path
         self.title = title
         self.dataset_dir = folders_path
+        self.image_type = (".jpg", ".jpeg", ".png", ".bmp")
 
         @self.get('/')
         async def home():
             return HTMLResponse("<h1>Face Recognition API</h1><br/><a href='/docs'>Try api now!</a>", status_code=status.HTTP_200_OK)
 
         @self.post("/predict")
-        async def predict(file: bytes = File(...)):
-            if not file:
-                return PlainTextResponse("Photo is empty", status_code=status.HTTP_204_NO_CONTENT)
-            image = io_utils.read_image_from_bytes(file)
+        async def predict(file: UploadFile = File(...)):
+            ext = os.path.splitext(file.filename)[1]
+            if ext.lower() not in self.image_type:
+                return PlainTextResponse(f"[NG] {file.filename} invaild photo format. Server only accept {self.image_type}", status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE)
+
+            try:
+                buf = await file.read()
+                image = io_utils.read_image_from_bytes(buf)
+            except:
+                return PlainTextResponse(f"[NG] {file.filename} photo error", status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE)
+
             share_param.detect_lock.acquire()
             share_param.recog_lock.acquire()
             bboxes, landmarks, photo_ids, similarities = self.system.sdk.recognize_faces(image)
@@ -61,12 +52,19 @@ class FaceRecogAPI(FastAPI):
             return JSONResponse(data, status_code=status.HTTP_200_OK)
 
         @self.post("/detect")
-        async def detect(file: bytes = File(...)):
-            if not file:
-                return PlainTextResponse("Photo is empty", status_code=status.HTTP_204_NO_CONTENT)
-            preprocess_img = io_utils.read_image_from_bytes(file)
+        async def detect(file: UploadFile = File(...)):
+            ext = os.path.splitext(file.filename)[1]
+            if ext.lower() not in self.image_type:
+                return PlainTextResponse(f"[NG] {file.filename} invaild photo format. Server only accept {self.image_type}", status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE)
+
+            try:
+                buf = await file.read()
+                image = io_utils.read_image_from_bytes(buf)
+            except:
+                return PlainTextResponse(f"[NG] {file.filename} photo error", status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE)
+
             share_param.detect_lock.acquire()
-            bboxes, landmarks = self.system.sdk.detect_faces(preprocess_img)
+            bboxes, landmarks = self.system.sdk.detect_faces(image)
             share_param.detect_lock.release()
 
             data = []
@@ -77,24 +75,30 @@ class FaceRecogAPI(FastAPI):
             return JSONResponse(data, status_code=status.HTTP_200_OK)
 
         @self.post("/api/add_images_database")
-        async def add_images_database(user_name: str, uploaded_files: List[UploadFile] = File(...)):
+        async def add_images_database(user_name: str, files: List[UploadFile] = File(...)):
             content = []
-            for file in uploaded_files:
-                buf = await file.read()
+            for file in files:
+                ext = os.path.splitext(file.filename)[1]
+                if ext.lower() not in self.image_type:
+                    content.append(f"[NG] {file.filename} invaild photo format. Server only accept {self.image_type}")
+                    continue
+
                 try:
+                    buf = await file.read()
                     image = io_utils.read_image_from_bytes(buf)
                 except:
-                    content.append(f"[NG] {file.filename} invaild photo format")
+                    content.append(f"[NG] {file.filename} photo error")
+                    continue
+
+                share_param.detect_lock.acquire()
+                share_param.recog_lock.acquire()
+                ret, photo_id, photo_path = self.system.add_photo_by_user_name(image, user_name)
+                share_param.recog_lock.release()
+                share_param.detect_lock.release()
+                if ret:
+                    content.append(f"[OK] {file.filename} add to {user_name}:{photo_id},{photo_path}")
                 else:
-                    share_param.detect_lock.acquire()
-                    share_param.recog_lock.acquire()
-                    ret, photo_id, photo_path = self.system.add_photo_by_user_name(image, user_name)
-                    share_param.recog_lock.release()
-                    share_param.detect_lock.release()
-                    if ret:
-                        content.append(f"[OK]{file.filename} add to {user_name}:{photo_id},{photo_path}")
-                    else:
-                        content.append("[NG] Face not found or many faces in photo")
+                    content.append(f"[NG] {file.filename} not found face or many faces")
             return JSONResponse(content, status_code=status.HTTP_201_CREATED)
 
         @self.post("/api/delete_image_database")

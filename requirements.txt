@@ -1,10 +1,10 @@
 torch
 torchvision
 faiss-cpu
-opencv-python
 albumentations
+opencv-python
 tqdm
-Pillow
 fastapi
 uvicorn
 requests
+python-multipart

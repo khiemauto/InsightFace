@@ -355,7 +355,7 @@ def pushserver_thread_fun():
             if data["FaceId"] not in lastTimeFaceID or (time.time() - lastTimeFaceID[data["FaceId"]]) > 10.0:
                 lastTimeFaceID[data["FaceId"]] = time.time()
                 # print("sending DeviceId: {},FaceId: {}".format(object_data["DeviceId"], object_data["FaceId"]))
-                # requests.post(url, files=file, params=data, timeout=3)
+                requests.post(url, files=file, params=data, timeout=3)
         except requests.exceptions.HTTPError as errh:
             print("Http Error:", errh)
         except requests.exceptions.ConnectionError as errc:
@@ -376,10 +376,9 @@ if __name__ == '__main__':
     object_queue = queue.Queue(maxsize=15*share_param.batch_size)
     stream_threads = []
     for deviceID, camURL in share_param.cam_infos.items():
-        if deviceID == 41:
-            stream_threads.append(threading.Thread(
-                target=stream_thread_fun_oneCam, daemon=True, args=(deviceID, camURL)))
-            break
+        stream_threads.append(threading.Thread(
+            target=stream_thread_fun_oneCam, daemon=True, args=(deviceID, camURL)))
+
     tracking_thread = threading.Thread(target=tracking_thread_fun, daemon=True, args=())
     pushserver_thread = threading.Thread(target=pushserver_thread_fun, daemon=True, args=())
     fileserver = socketserver.TCPServer((share_param.devconfig["FILESERVER"]["host"], share_param.devconfig["FILESERVER"]["port"]), http.server.SimpleHTTPRequestHandler)

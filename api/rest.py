@@ -21,10 +21,17 @@ class FaceRecogAPI(FastAPI):
 
         @self.get('/')
         async def home():
+            """
+            Home page
+            """
             return HTMLResponse("<h1>Face Recognition API</h1><br/><a href='/docs'>Try api now!</a>", status_code=status.HTTP_200_OK)
 
         @self.post("/predict")
         async def predict(file: UploadFile = File(...)):
+            """
+            Detect location and recognition face
+            file: image file (".jpg", ".jpeg", ".png", ".bmp")
+            """
             ext = os.path.splitext(file.filename)[1]
             if ext.lower() not in self.image_type:
                 return PlainTextResponse(f"[NG] {file.filename} invaild photo format. Server only accept {self.image_type}", status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE)
@@ -53,6 +60,10 @@ class FaceRecogAPI(FastAPI):
 
         @self.post("/detect")
         async def detect(file: UploadFile = File(...)):
+            """
+            Detect location of face
+            file: image file (".jpg", ".jpeg", ".png", ".bmp")
+            """
             ext = os.path.splitext(file.filename)[1]
             if ext.lower() not in self.image_type:
                 return PlainTextResponse(f"[NG] {file.filename} invaild photo format. Server only accept {self.image_type}", status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE)
@@ -76,6 +87,11 @@ class FaceRecogAPI(FastAPI):
 
         @self.post("/api/add_images_database")
         async def add_images_database(user_name: str, files: List[UploadFile] = File(...)):
+            """
+            Add new photo database for user_name
+            user_name: staffID
+            files: list image file (".jpg", ".jpeg", ".png", ".bmp")
+            """
             content = []
             for file in files:
                 ext = os.path.splitext(file.filename)[1]
@@ -103,6 +119,10 @@ class FaceRecogAPI(FastAPI):
 
         @self.post("/api/delete_image_database")
         async def delete_image_database(photo_id: int):
+            """
+            Remove a photo from database
+            photo_id: photo id in database
+            """
             ret = self.system.delete_photo_by_photo_id(photo_id)
             if ret:
                 return PlainTextResponse(f"Removed {photo_id} from database", status_code=status.HTTP_200_OK)
@@ -111,6 +131,9 @@ class FaceRecogAPI(FastAPI):
 
         @self.get("/api/reload_database")
         async def reload_database():
+            """
+            Reload database
+            """
             try:
                 share_param.detect_lock.acquire()
                 share_param.recog_lock.acquire()
@@ -125,10 +148,14 @@ class FaceRecogAPI(FastAPI):
 
         @self.get("/api/get_images/{user_name}")
         async def get_images(user_name: str):
+            """
+            Get list image url of user_name
+            user_name: staffID
+            """
             files_grabbed = {}
             for photoid, (username, photopath) in self.system.photoid_to_username_photopath.items():
                 if username == user_name:
-                    files_grabbed[photoid] =  os.path.join(share_param.devconfig['FILESERVER']['endpoint'], photopath)
+                    files_grabbed[photoid] =  os.path.join(f"{share_param.devconfig['FILESERVER']['host']}:{share_param.devconfig['FILESERVER']['port']}", photopath)
             return JSONResponse(files_grabbed, status_code=status.HTTP_200_OK)
 
         @self.post("/api/delete_user_name")
@@ -141,6 +168,10 @@ class FaceRecogAPI(FastAPI):
 
         @self.get("/find/{user_name}")
         async def find(user_name: str):
+            """
+            Check information of user_name
+            user_name: staffID
+            """
             nbimg = 0
             for photoid, (username, photopath) in self.system.photoid_to_username_photopath.items():
                 if username== user_name:
@@ -152,5 +183,8 @@ class FaceRecogAPI(FastAPI):
         
         @self.get("/save_database_to_disk")
         async def save_database_to_disk():
+            """
+            Save database from RAM to file
+            """
             self.system.save_database(self.db_folder_path)
             return PlainTextResponse("[OK] Saved database to disk", status_code=status.HTTP_200_OK)

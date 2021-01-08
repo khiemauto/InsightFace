@@ -1,10 +1,8 @@
 import threading
 import logging
 import queue
-from minio import Minio
 from core import support
 
-client_minio: Minio = None
 logging.basicConfig(filename="insightface.log", level=logging.DEBUG)
 
 detect_lock = threading.Lock()

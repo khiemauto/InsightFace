@@ -10,12 +10,16 @@ RUN apt-get update -y && apt-get upgrade -y
 # RUN pip3 install --upgrade pip
 # RUN python3 -V
 # RUN pip3 install torch torchvision 
-RUN apt-get install net-tools qt5-default -y
 RUN pip install opencv-python
 RUN pip install faiss-cpu albumentations tqdm requests uvicorn fastapi python-multipart
 RUN pip uninstall opencv-python-headless -y
 RUN pip install --force-reinstall opencv-python
-# RUN apt-get install ffmpeg libsm6 libxext6 -y
+# RUN apt-get install ffmpeg
+RUN apt-get update -y && apt-get upgrade -y
+# RUN apt-get install ffmpeg libsm6 -y
+RUN apt-get install qt5-default -y
+RUN apt-get install net-tools -y
+
 
 RUN mkdir -p /root/.cache/torch/checkpoints && mkdir -p /root/.cache/torch/hub/checkpoints
 COPY model/Resnet50_Final.pth /root/.cache/torch/checkpoints/

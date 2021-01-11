@@ -88,7 +88,7 @@ def stream_thread_fun_oneCam(deviceID: int, camURL: str):
         return
 
     FrameID = 1
-    timeStep = 1/10
+    timeStep = 1/10 #10FPS
     preStep = time.time()
 
     while share_param.bRunning:
@@ -96,10 +96,8 @@ def stream_thread_fun_oneCam(deviceID: int, camURL: str):
         FrameID += 1
         if time.time() - preStep > timeStep:
             preStep = time.time()
-            (grabbed, frame) = cap.retrieve()
-            if not grabbed:
-                continue
-            if frame is None or frame.size == 0:
+            (grabbed, frame) = cap.read()
+            if not grabbed or frame is None or frame.size == 0:
                 continue
         else:
             cap.grab()

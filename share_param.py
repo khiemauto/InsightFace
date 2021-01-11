@@ -3,7 +3,7 @@ import logging
 import queue
 from core import support
 
-logging.basicConfig(filename="insightface.log", level=logging.DEBUG)
+# logging.basicConfig(filename="insightface.log", level=logging.DEBUG)
 
 detect_lock = threading.Lock()
 recog_lock = threading.Lock()

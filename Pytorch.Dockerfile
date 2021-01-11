@@ -1,7 +1,5 @@
 FROM pytorch/pytorch:1.7.0-cuda11.0-cudnn8-devel
 LABEL AUTHOR=khiemtv
-# ENV PATH="/usr/local/cuda/bin:${PATH}"
-# ENV LD_LIBRARY_PATH="/usr/local/cuda/lib64:${LD_LIBRARY_PATH}"
 RUN nvcc --version
 RUN apt-get update -y && apt-get upgrade -y
 # RUN apt-get install -y build-essential
@@ -20,7 +18,6 @@ RUN apt-get update -y && apt-get upgrade -y
 RUN apt-get install qt5-default -y
 RUN apt-get install net-tools -y
 
-
 RUN mkdir -p /root/.cache/torch/checkpoints && mkdir -p /root/.cache/torch/hub/checkpoints
 COPY model/Resnet50_Final.pth /root/.cache/torch/checkpoints/
 COPY model/mobilenet0.25_Final.pth /root/.cache/torch/checkpoints/
@@ -29,3 +26,7 @@ COPY model/attr_mbnet2_jit_best.pt /root/.cache/torch/checkpoints/
 COPY model/iresnet34-5b0d0e90.pth /root/.cache/torch/hub/checkpoints/
 COPY model/iresnet50-7f187506.pth /root/.cache/torch/hub/checkpoints/
 COPY model/iresnet100-73e07ba7.pth /root/.cache/torch/hub/checkpoints/
+
+RUN DEBIAN_FRONTEND="noninteractive" apt-get -y install tzdata
+ENV TZ=Asia/Ho_Chi_Minh
+RUN echo $TZ > /etc/timezone

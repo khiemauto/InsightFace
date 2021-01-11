@@ -8,6 +8,7 @@ from fastapi import FastAPI, File, UploadFile, status
 from fastapi.responses import HTMLResponse, PlainTextResponse, JSONResponse, StreamingResponse
 
 import share_param
+import cv2
 
 
 class FaceRecogAPI(FastAPI):
@@ -84,6 +85,34 @@ class FaceRecogAPI(FastAPI):
                     "box": bbox.tolist(),
                     "landm": landm.tolist()})
             return JSONResponse(data, status_code=status.HTTP_200_OK)
+
+        @self.post("/get_descriptor")
+        async def get_descriptor(file: UploadFile = File(...)):
+            """
+            Detect location of face
+            file: image file (".jpg", ".jpeg", ".png", ".bmp")
+            """
+            ext = os.path.splitext(file.filename)[1]
+            if ext.lower() not in self.image_type:
+                return PlainTextResponse(f"[NG] {file.filename} invaild photo format. Server only accept {self.image_type}", status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE)
+
+            try:
+                buf = await file.read()
+                image = io_utils.read_image_from_bytes(buf)
+            except:
+                return PlainTextResponse(f"[NG] {file.filename} photo error", status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE)
+
+            image = cv2.resize(image, (112,112))
+            share_param.recog_lock.acquire()
+            descriptor = self.system.sdk.get_descriptor(image)
+            share_param.recog_lock.release()
+
+            # data = []
+            # for bbox, landm in zip(bboxes, landmarks):
+            #     data.append({
+            #         "box": bbox.tolist(),
+            #         "landm": landm.tolist()})
+            return JSONResponse(descriptor.tolist(), status_code=status.HTTP_200_OK)
 
         @self.post("/api/add_images_database")
         async def add_images_database(user_name: str, files: List[UploadFile] = File(...)):

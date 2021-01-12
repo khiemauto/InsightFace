@@ -25,19 +25,17 @@ def get_dev_config(local_file = "devconfig.json") -> json:
     return get_dev_config.camera_data
 
 def create_url(option: str):
-    config = get_dev_config()
+    config = share_param.devconfig
     if config is None:
         return None
     ip = config['SERVER']['ip']
-    print('ip', ip)
     port = config['SERVER']['port']
-    print('port', port)
     url = config['URL'][option]
-    print('url', url)
     if port:
         url = f"http://{ip}:{port}{url}"
     else:
         url = f"http://{ip}{url}"
+    print('[INFO] URL', url)
     return url
 
 def get_infor(url_name: str, local_file: str) -> json:

@@ -9,6 +9,8 @@ from fastapi.responses import HTMLResponse, PlainTextResponse, JSONResponse, Str
 
 import share_param
 import cv2
+from core import support, pushserver
+import datetime
 
 
 class FaceRecogAPI(FastAPI):
@@ -84,6 +86,41 @@ class FaceRecogAPI(FastAPI):
                 data.append({
                     "box": bbox.tolist(),
                     "landm": landm.tolist()})
+            return JSONResponse(data, status_code=status.HTTP_200_OK)
+
+        @self.post("/recognition_and_event")
+        async def recognition_and_event(DeviceId:int , RecordTime:str, file: UploadFile = File(...)):
+            """
+            Recogni from image (112,112,3)
+            file: image file (".jpg", ".jpeg", ".png", ".bmp")
+            """
+            ext = os.path.splitext(file.filename)[1]
+            if ext.lower() not in self.image_type:
+                return PlainTextResponse(f"[NG] {file.filename} invaild photo format. Server only accept {self.image_type}", status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE)
+
+            try:
+                buf = await file.read()
+                image = io_utils.read_image_from_bytes(buf)
+            except:
+                return PlainTextResponse(f"[NG] {file.filename} photo error", status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE)
+
+            face = cv2.resize(image, (112,112))
+            share_param.recog_lock.acquire()
+            descriptor = self.system.sdk.get_descriptor(face)
+            share_param.recog_lock.release()
+            indicies, distances = self.system.sdk.find_most_similar(descriptor)
+
+            name = self.system.get_user_name(indicies[0])
+            score = distances[0]
+
+            if score < support.get_dev_config()["DEV"]["face_reg_score"]:
+                name = "unknown"
+        
+            pushserver.add_object_queue(name, DeviceId, datetime.datetime.now(), image)
+
+            data = {
+                "name" : name,
+                "score": score}
             return JSONResponse(data, status_code=status.HTTP_200_OK)
 
         @self.post("/get_descriptor")

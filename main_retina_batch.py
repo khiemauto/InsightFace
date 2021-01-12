@@ -23,12 +23,8 @@ import socketserver, http.server
 from api.rest import FaceRecogAPI
 import share_param
 import io
+from core import pushserver
 
-GET_FACE_INFO_URL = 'get_face_info'
-GET_FACE_INFO_FILE = 'face_info.json'
-
-GET_LIST_DEVICE_URL = 'get_list_device'
-GET_LIST_DEVICE_FILE = 'list_device.json'
 
 ap = argparse.ArgumentParser()
 ap.add_argument("-fp", "--folders_path", default=None,
@@ -38,64 +34,44 @@ ap.add_argument("-dbp", "--db_folder_path", default="database",
 ap.add_argument("-rdb", "--reload_db", type=int, default=0,
                 help="reload database")
 args = vars(ap.parse_args())
-folders_path = args["folders_path"]
-db_folder_path = args["db_folder_path"]
-
-share_param.system = FaceRecognitionSystem(folders_path)
-
-# create, save and load database initialized from folders containing user photos
-if args["reload_db"]:
-    share_param.system.create_database_from_folders(folders_path)
-    share_param.system.save_database(db_folder_path)
-share_param.system.load_database(db_folder_path)
-
-app = FaceRecogAPI(share_param.system, folders_path, db_folder_path)
-
-share_param.bRunning = True
 
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 print('Running on device: {}'.format(device))
-
-
-def custom_imshow(title: str, image: np.ndarray):
-    if support.get_dev_config()["DEV"]["imshow"]:
-        cv2.imshow(title, image)
-        cv2.waitKey(1)
-
 
 def initiation() -> Tuple[dict, dict]:
     if not support.get_dev_config()["DEV"]["print"]:
         sys.stdout = open(os.devnull, 'w')
 
-    camera_datas = support.get_infor(GET_LIST_DEVICE_URL, GET_LIST_DEVICE_FILE)
-    face_datas = support.get_infor(GET_FACE_INFO_URL, GET_FACE_INFO_FILE)
-    cam_dicts = {}
-    face_dicts = {}
-    for camera_data in camera_datas:
-        cam_dicts[camera_data['DeviceId']] = camera_data['LinkRTSP']
-
-    for face_data in face_datas:
-        face_dicts[face_data["StaffCode"]] = face_data
+    cam_dicts = support.get_cameras()
+    face_dicts = support.get_faces()
 
     return cam_dicts, face_dicts
-
 
 def stream_thread_fun_oneCam(deviceID: int, camURL: str):
     deviceId = deviceID
     cap = cv2.VideoCapture(camURL, cv2.CAP_FFMPEG)
-    if cap is None or not cap.isOpened():
-        print("[Error] Can't connect to {}".format(camURL))
-        return
+
+    if not cap or not cap.isOpened():
+        print(f"[ERROR] Camera not open {camURL}")
 
     FrameID = 1
     timeStep = 1/10 #10FPS
-    preStep = time.time()
+    lastFrame = time.time()
+    lastGood = time.time()
 
     while share_param.bRunning:
         time.sleep(0.01)
+        if time.time() - lastGood > 30:
+            print("[INFO] Restart cam:", camURL)
+            cap.open(camURL)
+            lastGood = time.time()
+
+        if cap is None or not cap.isOpened():
+            continue
+
         FrameID += 1
-        if time.time() - preStep > timeStep:
-            preStep = time.time()
+        if time.time() - lastFrame > timeStep:
+            lastFrame = time.time()
             (grabbed, frame) = cap.read()
             if not grabbed or frame is None or frame.size == 0:
                 continue
@@ -103,10 +79,13 @@ def stream_thread_fun_oneCam(deviceID: int, camURL: str):
             cap.grab()
             continue
 
+        lastGood = time.time()
         while share_param.stream_queue.qsize() > 5*share_param.batch_size:
             share_param.stream_queue.get()
         share_param.stream_queue.put([deviceId, frame])
-    cap.release()
+
+    if cap:
+        cap.release()
 
 
 def tracking_thread_fun():
@@ -140,7 +119,6 @@ def tracking_thread_fun():
         boxes = []
         points = []
         scores = []
-        faceIds = []
         staffIds = []
         faceCropList = []
         faceCropExpandList = []
@@ -158,42 +136,14 @@ def tracking_thread_fun():
                                 int(bbox[0]):int(bbox[2])]
                 if imgcrop is None or imgcrop.size == 0:
                     continue
-                notblur = cv2.Laplacian(imgcrop, cv2.CV_32F).var()
-
-                # Hyperbol blur
+                
                 faceW = abs(bbox[2] - bbox[0])
                 faceH = abs(bbox[3] - bbox[1])
-                # print(faceW*faceH, notblur)
-                t = faceW*faceH
-                qi = 1345.33325
-                b = 0.52109685
-                di = 2.3316e-04
-                threshblur = qi/((1.0+b*di*t)**(1.0/max(b, 1.e-50)))
-
+                
+                notblur = cv2.Laplacian(imgcrop, cv2.CV_32F).var()
+                threshblur = support.get_blur_var(faceW*faceH)
                 if notblur < 0.8*threshblur:
                     continue
-
-                '''
-                #Face straight
-                cnt = landmark.reshape(5,2)
-
-                leftEye = cnt[0]
-                rightEye = cnt[1]
-                Nose = cnt[2]
-                lefMouth = cnt[3]
-                rightMouth = cnt[4]
-
-                distLEye2Nose = np.linalg.norm(leftEye - Nose)
-                distREye2Nose = np.linalg.norm(rightEye - Nose)
-                disEyeMouth = np.linalg.norm((leftEye + rightEye)/2 - (lefMouth + rightMouth)/2)
-                disTwoEye =  np.linalg.norm(leftEye - rightEye)
-
-                verticalStraight = 2*abs(distLEye2Nose-distREye2Nose)/(distLEye2Nose+distREye2Nose)
-                hoticalStraight = disTwoEye/disEyeMouth
-                print(verticalStraight, hoticalStraight)
-                if verticalStraight > 0.7 or hoticalStraight < 0.2 or hoticalStraight > 2.0  :
-                    continue
-                '''
 
                 bbox_keeps.append(bbox)
                 landmark_keeps.append(landmark)
@@ -221,8 +171,6 @@ def tracking_thread_fun():
                 points.append(landmark)
                 scores.append(float(score))
                 staffIds.append(name)
-                faceIds.append(share_param.face_infos[name]["FaceId"]
-                               if name in share_param.face_infos else -1)
                 faceCropList.append(image[int(bbox[1]):int(
                     bbox[3]), int(bbox[0]):int(bbox[2])])
 
@@ -239,7 +187,7 @@ def tracking_thread_fun():
                 boxDeviceID.append(deviceId)
         if len(boxes) == 0:
             for i, frame in enumerate(frameList):
-                custom_imshow(str(deviceIdList[i]),
+                support.custom_imshow(str(deviceIdList[i]),
                               cv2.resize(frame, (640, 480)))
             # print("TotalTime:",time.time() - totalTime)
             continue
@@ -254,7 +202,7 @@ def tracking_thread_fun():
 
         # print(scores)
         # print(index)
-        for i, (box, staffId, faceId, score) in enumerate(zip(boxes, staffIds, faceIds, scores)):
+        for i, (box, staffId, score) in enumerate(zip(boxes, staffIds, scores)):
             if score > support.get_dev_config()["DEV"]["face_reg_score"]:
                 cv2.rectangle(frameList[boxframeID[i]], (int(box[0]), int(
                     box[1])), (int(box[2]), int(box[3])), (0, 255, 0), 2)
@@ -262,125 +210,50 @@ def tracking_thread_fun():
                 cv2.putText(frameList[boxframeID[i]], "{} {:03.3f}".format(staffId, score), (int(box[0]), int(y)), cv2.FONT_HERSHEY_SIMPLEX,
                             0.75, (0, 255, 0), 2)
             else:
-                faceId = -1
+                staffId = "unknown"
                 cv2.rectangle(frameList[boxframeID[i]], (int(box[0]), int(
                     box[1])), (int(box[2]), int(box[3])), (0, 0, 255), 2)
                 y = box[1] - 15 if box[1] - 15 > 15 else box[1] + 15
                 cv2.putText(frameList[boxframeID[i]], "{} {:03.3f}".format(staffId, score), (int(box[0]), int(y)), cv2.FONT_HERSHEY_SIMPLEX,
                             0.75, (0, 0, 255), 2)
 
-            add_object_queue(
-                staffId, faceId, boxDeviceID[i], datetime.datetime.now(), faceCropExpandList[i])
+            pushserver.add_object_queue(staffId, boxDeviceID[i], datetime.datetime.now(), faceCropExpandList[i])
 
         for i, frame in enumerate(frameList):
-            custom_imshow(str(deviceIdList[i]), cv2.resize(frame, (640, 480)))
+            support.custom_imshow(str(deviceIdList[i]), cv2.resize(frame, (640, 480)))
 
         # print("TotalTime:",time.time() - totalTime)
 
 
-def add_object_queue(staffId: str, face_id: int, device_id: str, track_time, face_img: np.array):
-    data = {'EventId': "1",
-            'DeviceId': device_id,
-            "StaffId": staffId,
-            'FaceId': face_id,
-            'RecordTime': track_time.strftime("%Y-%m-%d %H:%M:%S"),
-            'FaceImg': face_img}
-    # print(data["RecordTime"])
-    preTime = time.time()
-    # print("share_param.batch_size:",share_param.batch_size)
-    while share_param.object_queue.qsize() > 10*share_param.batch_size:
-        share_param.object_queue.get()
-    # print("RemTime:", time.time()-preTime)
-    preTime = time.time()
-    # print("QueueSize:", share_param.object_queue.qsize())
-    if share_param.object_queue.qsize() < 5*share_param.batch_size:
-        share_param.object_queue.put(data)
-    else:
-        if face_id != -1:
-            share_param.object_queue.put(data)
-    # print("PutTime:", time.time()-preTime)
-    preTime = time.time()
-
-
-def pushserver_thread_fun():
-    url = support.create_url("face_upload")
-    print("Full", url)
-    lastTimeFaceID = {}
-    while share_param.bRunning:
-        time.sleep(0.001)
-        if share_param.object_queue.empty():
-            # print("object_queue empty")
-            continue
-
-        object_data = share_param.object_queue.get()
-
-        data = {'EventId': object_data['EventId'],
-                'DeviceId': object_data['DeviceId'],
-                'RecordTime': object_data['RecordTime'],
-                'FaceId': object_data['FaceId']}
-
-        preTime = time.time()
-        if object_data["FaceImg"] is None or object_data["FaceImg"].size == 0:
-            continue
-
-        object_data["FaceImg"] = cv2.cvtColor(
-            object_data["FaceImg"], cv2.COLOR_RGB2BGR)
-        _, buf = cv2.imencode(".jpg", object_data["FaceImg"])
-        # print("encode time: {}".format(time.time()-preTime))
-        filename = datetime.datetime.now().strftime("%Y%m%d%H%M%S%f") + ".jpg"
-
-        if object_data['FaceId'] == -1:
-            pathfile = "dataset/unknowns/" + filename
-            path = os.path.dirname(pathfile)
-            if not os.path.exists(path):
-                os.makedirs(path)
-            with open(pathfile, "wb") as f:
-                f.write(buf)
-            # continue
-        else:
-            pathfile = "dataset/knowns/" + \
-                object_data["StaffId"] + "/" + filename
-            path = os.path.dirname(pathfile)
-            if not os.path.exists(path):
-                os.makedirs(path)
-            with open(pathfile, "wb") as f:
-                f.write(buf)
-
-        file = {"Files": (filename, buf.tobytes(),
-                          "image/jpeg", {"Expires": "0"})}
-        preTime = time.time()
-        try:
-            if data["FaceId"] not in lastTimeFaceID or (time.time() - lastTimeFaceID[data["FaceId"]]) > 10.0:
-                lastTimeFaceID[data["FaceId"]] = time.time()
-                # print("sending DeviceId: {},FaceId: {}".format(object_data["DeviceId"], object_data["FaceId"]))
-                requests.post(url, files=file, params=data, timeout=3)
-        except requests.exceptions.HTTPError as errh:
-            print("Http Error:", errh)
-        except requests.exceptions.ConnectionError as errc:
-            print("Error Connecting:", errc)
-        except requests.exceptions.Timeout as errt:
-            print("Timeout Error:", errt)
-        except requests.exceptions.RequestException as err:
-            print("OOps: Something Else", err)
-        except:
-            print("OOps: Post error")
-        # print("post time: {}".format(time.time()-preTime))
-
-
 if __name__ == '__main__':
+    folders_path = args["folders_path"]
+    db_folder_path = args["db_folder_path"]
+
+    share_param.devconfig = support.get_dev_config()
+
+    share_param.system = FaceRecognitionSystem(folders_path)
+
+    if args["reload_db"]:
+        share_param.system.create_database_from_folders(folders_path)
+        share_param.system.save_database(db_folder_path)
+    share_param.system.load_database(db_folder_path)
+
     share_param.cam_infos, share_param.face_infos = initiation()
     share_param.batch_size = len(share_param.cam_infos)
     share_param.stream_queue = queue.Queue(maxsize=15*share_param.batch_size)
-    object_queue = queue.Queue(maxsize=15*share_param.batch_size)
+    share_param.detect_queue = queue.Queue(maxsize=15*share_param.batch_size)
+    share_param.object_queue = queue.Queue(maxsize=15*share_param.batch_size)
     stream_threads = []
     for deviceID, camURL in share_param.cam_infos.items():
         stream_threads.append(threading.Thread(
             target=stream_thread_fun_oneCam, daemon=True, args=(deviceID, camURL)))
 
     tracking_thread = threading.Thread(target=tracking_thread_fun, daemon=True, args=())
-    pushserver_thread = threading.Thread(target=pushserver_thread_fun, daemon=True, args=())
+    pushserver_thread = threading.Thread(target=pushserver.pushserver_thread_fun, daemon=True, args=())
     fileserver = socketserver.TCPServer((share_param.devconfig["FILESERVER"]["host"], share_param.devconfig["FILESERVER"]["port"]), http.server.SimpleHTTPRequestHandler)
     file_thread = threading.Thread(target=fileserver.serve_forever, daemon=True, args=())
+
+    share_param.bRunning = True
 
     file_thread.start()
     for stream_thread in stream_threads:
@@ -388,7 +261,8 @@ if __name__ == '__main__':
     tracking_thread.start()
     pushserver_thread.start()
 
-    uvicorn.run(app, host=share_param.devconfig["APISERVER"]["host"], port=share_param.devconfig["APISERVER"]["port"])
+    share_param.app = FaceRecogAPI(share_param.system, folders_path, db_folder_path)
+    uvicorn.run(share_param.app, host=share_param.devconfig["APISERVER"]["host"], port=share_param.devconfig["APISERVER"]["port"])
     share_param.bRunning = False
     fileserver.shutdown()
     cv2.destroyAllWindows()

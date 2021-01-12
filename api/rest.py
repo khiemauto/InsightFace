@@ -233,3 +233,18 @@ class FaceRecogAPI(FastAPI):
             """
             self.system.save_database(self.db_folder_path)
             return PlainTextResponse("[OK] Saved database to disk", status_code=status.HTTP_200_OK)
+
+        @self.get("/update_face_infos")
+        async def update_face_infos():
+            """
+            Update info from web server
+            """
+            face_datas = support.get_infor(share_param.GET_FACE_INFO_URL, share_param.GET_FACE_INFO_FILE)
+            if not face_datas:
+                return PlainTextResponse("[NG] Not get info from web server", status_code=status.HTTP_404_NOT_FOUND)
+
+            face_dicts = {}
+            for face_data in face_datas:
+                face_dicts[face_data["StaffCode"]] = face_data
+            share_param.face_infos = face_dicts
+            return PlainTextResponse("[OK] success get info from web server", status_code=status.HTTP_200_OK)

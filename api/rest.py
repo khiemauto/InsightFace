@@ -9,6 +9,7 @@ from fastapi.responses import HTMLResponse, PlainTextResponse, JSONResponse, Str
 
 import share_param
 import cv2
+from core import support
 
 
 class FaceRecogAPI(FastAPI):
@@ -144,6 +145,14 @@ class FaceRecogAPI(FastAPI):
                     content.append(f"[OK] {file.filename} add to {user_name}:{photo_id},{photo_path}")
                 else:
                     content.append(f"[NG] {file.filename} not found face or many faces")
+
+            face_datas = support.get_infor(share_param.GET_FACE_INFO_URL, share_param.GET_FACE_INFO_FILE)
+            face_dicts = {}
+
+            for face_data in face_datas:
+                face_dicts[face_data["StaffCode"]] = face_data
+            share_param.face_infos = face_dicts
+            
             return JSONResponse(content, status_code=status.HTTP_201_CREATED)
 
         @self.post("/api/delete_image_database")
@@ -190,6 +199,13 @@ class FaceRecogAPI(FastAPI):
         @self.post("/api/delete_user_name")
         async def delete_user(user_name: str):
             ret, nbphoto = self.system.del_photo_by_user_name(user_name)
+            
+            face_datas = support.get_infor(share_param.GET_FACE_INFO_URL, share_param.GET_FACE_INFO_FILE)
+            face_dicts = {}
+            for face_data in face_datas:
+                face_dicts[face_data["StaffCode"]] = face_data
+            share_param.face_infos = face_dicts
+
             if ret:
                 return PlainTextResponse(f"Removed {nbphoto} photos of {user_name}", status_code=status.HTTP_200_OK)
             else:

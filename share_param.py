@@ -20,3 +20,8 @@ batch_size = 1
 stream_queue = queue.Queue(maxsize=15*batch_size)
 object_queue = queue.Queue(maxsize=15*batch_size)
 
+GET_FACE_INFO_URL = 'get_face_info'
+GET_FACE_INFO_FILE = 'face_info.json'
+
+GET_LIST_DEVICE_URL = 'get_list_device'
+GET_LIST_DEVICE_FILE = 'list_device.json'

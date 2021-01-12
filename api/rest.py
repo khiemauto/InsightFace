@@ -152,6 +152,8 @@ class FaceRecogAPI(FastAPI):
             for face_data in face_datas:
                 face_dicts[face_data["StaffCode"]] = face_data
             share_param.face_infos = face_dicts
+
+            self.system.save_database(self.db_folder_path)
             
             return JSONResponse(content, status_code=status.HTTP_201_CREATED)
 
@@ -205,6 +207,8 @@ class FaceRecogAPI(FastAPI):
             for face_data in face_datas:
                 face_dicts[face_data["StaffCode"]] = face_data
             share_param.face_infos = face_dicts
+
+            self.system.save_database(self.db_folder_path)
 
             if ret:
                 return PlainTextResponse(f"Removed {nbphoto} photos of {user_name}", status_code=status.HTTP_200_OK)

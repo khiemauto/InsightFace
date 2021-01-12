@@ -17,7 +17,7 @@ app = None  #FaceRecogAPI
 cam_infos = {}
 face_infos = {}
 
-bRunning = True
+bRunning = False
 
 batch_size = 1
 stream_queue = queue.Queue(maxsize=15*batch_size)

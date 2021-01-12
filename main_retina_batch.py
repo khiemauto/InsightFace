@@ -51,8 +51,6 @@ share_param.system.load_database(db_folder_path)
 
 app = FaceRecogAPI(share_param.system, folders_path, db_folder_path)
 
-share_param.bRunning = True
-
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 print('Running on device: {}'.format(device))
 
@@ -371,7 +369,7 @@ if __name__ == '__main__':
     share_param.cam_infos, share_param.face_infos = initiation()
     share_param.batch_size = len(share_param.cam_infos)
     share_param.stream_queue = queue.Queue(maxsize=15*share_param.batch_size)
-    object_queue = queue.Queue(maxsize=15*share_param.batch_size)
+    share_param.object_queue = queue.Queue(maxsize=15*share_param.batch_size)
     stream_threads = []
     for deviceID, camURL in share_param.cam_infos.items():
         stream_threads.append(threading.Thread(
@@ -381,7 +379,8 @@ if __name__ == '__main__':
     pushserver_thread = threading.Thread(target=pushserver_thread_fun, daemon=True, args=())
     fileserver = socketserver.TCPServer((share_param.devconfig["FILESERVER"]["host"], share_param.devconfig["FILESERVER"]["port"]), http.server.SimpleHTTPRequestHandler)
     file_thread = threading.Thread(target=fileserver.serve_forever, daemon=True, args=())
-
+    
+    share_param.bRunning = True
     file_thread.start()
     for stream_thread in stream_threads:
         stream_thread.start()

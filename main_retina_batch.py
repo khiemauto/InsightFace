@@ -212,12 +212,11 @@ if __name__ == '__main__':
     share_param.cam_infos, share_param.face_infos = initiation()
     share_param.batch_size = len(share_param.cam_infos)
     share_param.stream_queue = queue.Queue(
-        maxsize=share_param.STREAM_SIZE*share_param.batch_size+3)  # [deviceId, image]
-    # [deviceId, image, bboxs, landmarks]
+        maxsize=share_param.STREAM_SIZE*share_param.batch_size+3)
     share_param.detect_queue = queue.Queue(
         maxsize=share_param.DETECT_SIZE*share_param.batch_size+3)
     share_param.recogn_queue = queue.Queue(
-        maxsize=share_param.RECOGN_SIZE*share_param.batch_size+3)    #
+        maxsize=share_param.RECOGN_SIZE*share_param.batch_size+3)
 
     stream_threads = []
     for deviceID, camURL in share_param.cam_infos.items():

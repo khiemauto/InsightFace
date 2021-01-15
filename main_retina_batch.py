@@ -1,3 +1,8 @@
+"""
+Author: Khiem Tran,
+Email: khiembka1992@gmail.com",
+Date: 2020/01/15
+"""
 import queue
 import cv2
 import argparse
@@ -106,6 +111,8 @@ def detect_thread_fun():
             share_param.detect_lock.release()
             bbox_keeps = []
             landmark_keeps = []
+            faceAlign_keeps = []
+
             for bbox, landmark in zip(bboxes, landmarks):
                 # Skip blur face
                 imgcrop = rgb[int(bbox[1]):int(bbox[3]),
@@ -120,13 +127,15 @@ def detect_thread_fun():
                 threshblur = support.get_blur_var(faceW*faceH)
                 if notblur < 0.8*threshblur:
                     continue
+
+                faceAlign_keeps.append(share_param.system.sdk.align_face(rgb, landmark))
                 bbox_keeps.append(bbox)
                 landmark_keeps.append(landmark)
 
             while share_param.detect_queue.qsize() > share_param.DETECT_SIZE*share_param.batch_size:
                 share_param.detect_queue.get()
             share_param.detect_queue.put(
-                [deviceId, rgb, bbox_keeps, landmark_keeps])
+                [deviceId, rgb, bbox_keeps, landmark_keeps, faceAlign_keeps])
 
         print("Detect Time:", time.time() - totalTime)
 
@@ -142,21 +151,20 @@ def recogn_thread_fun():
         for i in range(share_param.batch_size):
             recogn_inputs.append(share_param.detect_queue.get())
 
-        for batchId, (deviceId, rgb, bboxs, landmarks) in enumerate(recogn_inputs):
+        for batchId, (deviceId, rgb, bboxs, landmarks, faceAligns) in enumerate(recogn_inputs):
             names = []
             similarities = []
             faceCrops = []
             faceCropExpands = []
 
-            for bbox, landmark in zip(bboxs, landmarks):
+            for bbox, landmark, faceAlign in zip(bboxs, landmarks, faceAligns):
                 if not share_param.system.photoid_to_username_photopath:
                     names.append('unknown')
                     similarities.append(0.0)
                     continue
 
-                face = share_param.system.sdk.align_face(rgb, landmark)
                 share_param.recog_lock.acquire()
-                descriptor = share_param.system.sdk.get_descriptor(face)
+                descriptor = share_param.system.sdk.get_descriptor(faceAlign)
                 indicies, distances = share_param.system.sdk.find_most_similar(
                     descriptor)
                 share_param.recog_lock.release()
@@ -164,7 +172,7 @@ def recogn_thread_fun():
                 names.append(user_name)
                 similarities.append(distances[0])
                 faceCrops.append(rgb[int(bbox[1]):int(
-                    bbox[3]), int(bbox[0]):int(bbox[2])])
+                    bbox[3]), int(bbox[0]):int(bbox[2])].copy())
                 faceW = abs(bbox[2] - bbox[0])
                 faceH = abs(bbox[3] - bbox[1])
                 expandLeft = max(0, bbox[0] - faceW/3)
@@ -172,7 +180,7 @@ def recogn_thread_fun():
                 expandRight = min(bbox[2] + faceW/3, rgb.shape[1])
                 expandBottom = min(bbox[3] + faceH/3, rgb.shape[0])
                 faceCropExpands.append(rgb[int(expandTop):int(
-                    expandBottom), int(expandLeft):int(expandRight)])
+                    expandBottom), int(expandLeft):int(expandRight)].copy())
 
             for (box, staffId, score, faceCrop, faceCropExpand) in zip(bboxs, names, similarities, faceCrops, faceCropExpands):
                 if score > share_param.devconfig["DEV"]["face_reg_score"]:

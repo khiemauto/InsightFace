@@ -113,7 +113,7 @@ class FaceRecogAPI(FastAPI):
             name = self.system.get_user_name(indicies[0])
             score = distances[0]
 
-            if score < support.get_dev_config()["DEV"]["face_reg_score"]:
+            if score < share_param.devconfig["DEV"]["face_reg_score"]:
                 name = "unknown"
         
             pushserver.add_object_queue(name, DeviceId, datetime.datetime.now(), image)

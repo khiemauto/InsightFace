@@ -20,9 +20,14 @@ face_infos = {}
 bRunning = False
 
 batch_size = 1
-stream_queue = queue.Queue(maxsize=15*batch_size)
-detect_queue = queue.Queue(maxsize=15*batch_size)
-object_queue = queue.Queue(maxsize=15*batch_size)
+
+STREAM_SIZE = 5
+DETECT_SIZE = 5
+RECOGN_SIZE = 10
+
+stream_queue = None    #[deviceId, rgb]
+detect_queue = None    #[deviceId, rgb, bboxs, landmarks]
+recogn_queue = None    #{'EventId','UserName','DeviceId,'FaceId','RecordTime','FaceImg'}
 
 GET_FACE_INFO_URL = 'get_face_info'
 GET_FACE_INFO_FILE = 'face_info.json'

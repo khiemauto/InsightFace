@@ -13,16 +13,13 @@ def get_dev_config(local_file = "devconfig.json") -> json:
     :local_file: dev config file
     :return: json config
     """
+    camera_data = None
     try:
-        get_dev_config.camera_data
-    except AttributeError or NameError:
-        get_dev_config.camera_data = None
-        try:
-            with open(local_file, 'r') as json_file:
-                get_dev_config.camera_data = json.load(json_file)
-        except:
-            print(f"[Error] Read json {local_file}")
-    return get_dev_config.camera_data
+        with open(local_file, 'r') as json_file:
+            camera_data = json.load(json_file)
+    except:
+        print(f"[Error] Read json {local_file}")
+    return camera_data
 
 def create_url(option: str):
     config = share_param.devconfig
@@ -74,6 +71,6 @@ def get_faces() -> dict:
 
 
 def custom_imshow(title: str, image: np.ndarray):
-    if get_dev_config()["DEV"]["imshow"]:
+    if share_param.devconfig["DEV"]["imshow"]:
         cv2.imshow(title, image)
         cv2.waitKey(1)

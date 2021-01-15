@@ -12,13 +12,12 @@ def add_object_queue(user_name: str, device_id: str, track_time: str , face_img:
             'FaceId': face_id,
             'RecordTime': track_time,
             'FaceImg': face_img}
-    while share_param.object_queue.qsize() > 10*share_param.batch_size:
-        share_param.object_queue.get()
-    if share_param.object_queue.qsize() < 5*share_param.batch_size:
-        share_param.object_queue.put(data)
-    else:
-        if face_id != -1:
-            share_param.object_queue.put(data)
+    while share_param.recogn_queue.qsize() > share_param.RECOGN_SIZE*share_param.batch_size:
+        share_param.recogn_queue.get()
+    if share_param.recogn_queue.qsize() < share_param.RECOGN_SIZE*share_param.batch_size//2:
+        share_param.recogn_queue.put(data)
+    elif face_id != -1:
+        share_param.recogn_queue.put(data)
 
 def pushserver_thread_fun():
     url = support.create_url("face_upload")
@@ -26,10 +25,10 @@ def pushserver_thread_fun():
     lastTimeFaceID = {}
     while share_param.bRunning:
         time.sleep(0.001)
-        if share_param.object_queue.empty():
+        if share_param.recogn_queue.empty():
             continue
 
-        object_data = share_param.object_queue.get()
+        object_data = share_param.recogn_queue.get()
 
         data = {'EventId': object_data['EventId'],
                 'DeviceId': object_data['DeviceId'],
@@ -70,7 +69,8 @@ def pushserver_thread_fun():
             if data["FaceId"] not in lastTimeFaceID or (time.time() - lastTimeFaceID[data["FaceId"]]) > 10.0:
                 lastTimeFaceID[data["FaceId"]] = time.time()
                 print("sending DeviceId: {},FaceId: {}".format(object_data["DeviceId"], object_data["FaceId"]))
-                # requests.post(url, files=file, params=data, timeout=3)
+                ret = requests.post(url, files=file, params=data, timeout=3)
+                # print(data["FaceId"], ret.content)
         except requests.exceptions.HTTPError as errh:
             print("Http Error:", errh)
         except requests.exceptions.ConnectionError as errc:

@@ -13,11 +13,12 @@
         "get_face_info": "/vms-api/api/face/get"
     },
     "DEV": {
+        "__comment": "option_recogition: 0-not recogn(detect), 1-local recogn(detect), 2-cloud recogn",
         "imshow": true,
         "print": true,
         "face_reg_score": 0.7,
-        "enable_detect": true,
-        "enable_recogition": true
+        "option_detection": 1,
+        "option_recogition": 2
     },
     "APISERVER": {
         "host": "192.168.1.111",

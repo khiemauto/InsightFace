@@ -163,7 +163,8 @@ def detect_thread_fun():
             elif share_param.devconfig["DEV"]["option_recogition"] == share_param.RECOGN_CLOUD:
                 while share_param.push_detect_queue.qsize() > share_param.DETECT_SIZE*share_param.batch_size:
                     share_param.push_detect_queue.get()
-                share_param.push_detect_queue.put([deviceId, bbox_keeps, landmark_keeps, faceCropExpand_keeps, rgb])
+                share_param.push_detect_queue.put([deviceId, bbox_keeps, landmark_keeps, faceCropExpand_keeps, None])
+                support.custom_imshow(str(deviceId), cv2.resize(rgb, (500, 500)))
             
         print("Detect Time:", time.time() - totalTime)
 

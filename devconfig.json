@@ -15,11 +15,14 @@
     "DEV": {
         "imshow": true,
         "print": true,
-        "face_reg_score": 0.7
+        "face_reg_score": 0.7,
+        "enable_detect": true,
+        "enable_recogition": true
     },
     "APISERVER": {
-        "host": "0.0.0.0",
-        "port": 8000
+        "host": "192.168.1.111",
+        "port": 8000,
+        "add_recognition_queue": "/add_recognition_queue"
     },
     "FILESERVER": {
         "host": "0.0.0.0",

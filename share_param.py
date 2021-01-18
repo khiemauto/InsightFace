@@ -26,7 +26,7 @@ DETECT_SIZE = 5
 RECOGN_SIZE = 10
 
 stream_queue = None    #[deviceId, rgb]
-detect_queue = None    #[deviceId, rgb, bboxs, landmarks, faceAligns]
+detect_queue = None    #[deviceId, bboxs, landmarks, faceCropExpands, rgb]
 recogn_queue = None    #{'EventId','UserName','DeviceId,'FaceId','RecordTime','FaceImg'}
 
 GET_FACE_INFO_URL = 'get_face_info'

@@ -12,6 +12,8 @@ import threading
 import os
 import sys
 from typing import Tuple
+
+from fastapi import params
 from face_recognition_sdk.utils.database import FaceRecognitionSystem
 import uvicorn
 import socketserver
@@ -19,6 +21,10 @@ import http.server
 from api.rest import FaceRecogAPI
 import share_param
 from core import support, pushserver
+import numpy as np
+import requests
+import json
+import curlify
 
 
 ap = argparse.ArgumentParser()
@@ -76,10 +82,10 @@ def stream_thread_fun(deviceID: int, camURL: str):
         lastGood = time.time()
         xstart = (frame.shape[1] - frame.shape[0])//2
         frame = frame[:, xstart: xstart + frame.shape[0]]
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         while share_param.stream_queue.qsize() > share_param.STREAM_SIZE*share_param.batch_size:
             share_param.stream_queue.get()
-        share_param.stream_queue.put(
-            [deviceId, cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)])
+        share_param.stream_queue.put([deviceId, frame])
 
     if cap:
         cap.release()
@@ -98,10 +104,6 @@ def detect_thread_fun():
 
         for batchId in range(share_param.batch_size):
             deviceId, rgb = share_param.stream_queue.get()
-            # xstart = (bgr.shape[1] - bgr.shape[0])//2
-            # bgr = bgr[:, xstart: xstart + bgr.shape[0]]
-            # print(rgb.shape)
-            # rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
             detect_inputs.append([deviceId, rgb])
 
         preTime = time.time()
@@ -111,7 +113,7 @@ def detect_thread_fun():
             share_param.detect_lock.release()
             bbox_keeps = []
             landmark_keeps = []
-            faceAlign_keeps = []
+            faceCropExpand_keeps = []
 
             for bbox, landmark in zip(bboxes, landmarks):
                 # Skip blur face
@@ -128,82 +130,117 @@ def detect_thread_fun():
                 if notblur < 0.8*threshblur:
                     continue
 
-                faceAlign_keeps.append(share_param.system.sdk.align_face(rgb, landmark))
-                bbox_keeps.append(bbox)
-                landmark_keeps.append(landmark)
+                expandLeft = max(0, bbox[0] - faceW/3)
+                expandTop = max(0, bbox[1] - faceH/3)
+                expandRight = min(bbox[2] + faceW/3, rgb.shape[1])
+                expandBottom = min(bbox[3] + faceH/3, rgb.shape[0])
+                faceCropExpand = rgb[int(expandTop):int(expandBottom), int(expandLeft):int(expandRight)]
+                faceCropExpand_keeps.append(faceCropExpand)
 
-            while share_param.detect_queue.qsize() > share_param.DETECT_SIZE*share_param.batch_size:
-                share_param.detect_queue.get()
-            share_param.detect_queue.put(
-                [deviceId, rgb, bbox_keeps, landmark_keeps, faceAlign_keeps])
+                #Mov abs position to faceCropExpand coordinate
+                relbox = [bbox[0]-expandLeft, bbox[1]-expandTop, bbox[2]-expandLeft, bbox[3]-expandTop, bbox[4]]
 
-        print("Detect Time:", time.time() - totalTime)
+                rellandmark = landmark.reshape((5,2), order= "F")
+                rellandmark = rellandmark-[expandLeft, expandTop]
+                rellandmark = rellandmark.ravel(order= "F")
+
+                bbox_keeps.append(np.asarray(relbox))
+                landmark_keeps.append(np.asarray(rellandmark))
+
+
+            if len(bbox_keeps)==0 and len(landmark_keeps)==0:
+                continue
+            #Test web api
+            if share_param.devconfig["DEV"]["enable_recogition"]:
+                while share_param.detect_queue.qsize() > share_param.DETECT_SIZE*share_param.batch_size:
+                    share_param.detect_queue.get()
+                share_param.detect_queue.put([deviceId, bbox_keeps, landmark_keeps, faceCropExpand_keeps, rgb])
+            
+            else:
+                data_str = json.dumps({'deviceId': deviceId, 'bboxs': [bbox.tolist() for bbox in bbox_keeps], 'landmarks': [landmark.tolist() for landmark in landmark_keeps]})
+                data_json = {"data": data_str}
+                img_posts = []
+                for faceCropExpand in faceCropExpand_keeps:
+                    bgr_faceCropExpand = cv2.cvtColor(faceCropExpand, cv2.COLOR_RGB2BGR)
+                    _, buf = cv2.imencode(".jpg", bgr_faceCropExpand)
+                    filename = datetime.datetime.now().strftime("%Y%m%d%H%M%S%f") + ".jpg"
+                    img_post = ('faceCropExpandFiles', (filename, buf.tobytes(), 'image/jpeg'))
+                    img_posts.append(img_post)
+                    
+                if len(img_posts) > 0:
+                    r = requests.post(f"http://{share_param.devconfig['APISERVER']['host']}:{share_param.devconfig['APISERVER']['port']}/add_recognition_queue", files = img_posts, params=data_json, timeout=3)
+                    print(r.status_code, r.content)
+
+        # print("Detect Time:", time.time() - totalTime)
 
 
 def recogn_thread_fun():
+    totalTime = time.time()
     while share_param.bRunning:
         time.sleep(0.001)
+        # print("Recogn Time:", time.time() - totalTime)
         totalTime = time.time()
+
         if share_param.detect_queue.qsize() < share_param.batch_size:
             continue
 
-        recogn_inputs = []  # [[deviceId, bgr, rgb, bboxs, landmarks]]
+        recogn_inputs = []
         for i in range(share_param.batch_size):
             recogn_inputs.append(share_param.detect_queue.get())
 
-        for batchId, (deviceId, rgb, bboxs, landmarks, faceAligns) in enumerate(recogn_inputs):
+        for batchId, (deviceId, bboxs, landmarks, faceCropExpands, rgb) in enumerate(recogn_inputs):
             names = []
             similarities = []
-            faceCrops = []
-            faceCropExpands = []
 
-            for bbox, landmark, faceAlign in zip(bboxs, landmarks, faceAligns):
+            for bbox, landmark, faceCropExpand in zip(bboxs, landmarks, faceCropExpands):
+                if faceCropExpand is None or faceCropExpand.size ==0:
+                    continue
+
                 if not share_param.system.photoid_to_username_photopath:
                     names.append('unknown')
                     similarities.append(0.0)
                     continue
 
+                faceAlign = share_param.system.sdk.align_face(faceCropExpand, landmark)
+                # support.custom_imshow(str(deviceId), faceAlign)
+
                 share_param.recog_lock.acquire()
                 descriptor = share_param.system.sdk.get_descriptor(faceAlign)
+                share_param.recog_lock.release()
                 indicies, distances = share_param.system.sdk.find_most_similar(
                     descriptor)
-                share_param.recog_lock.release()
                 user_name = share_param.system.get_user_name(indicies[0])
                 names.append(user_name)
                 similarities.append(distances[0])
-                faceCrops.append(rgb[int(bbox[1]):int(
-                    bbox[3]), int(bbox[0]):int(bbox[2])].copy())
-                faceW = abs(bbox[2] - bbox[0])
-                faceH = abs(bbox[3] - bbox[1])
-                expandLeft = max(0, bbox[0] - faceW/3)
-                expandTop = max(0, bbox[1] - faceH/3)
-                expandRight = min(bbox[2] + faceW/3, rgb.shape[1])
-                expandBottom = min(bbox[3] + faceH/3, rgb.shape[0])
-                faceCropExpands.append(rgb[int(expandTop):int(
-                    expandBottom), int(expandLeft):int(expandRight)].copy())
 
-            for (box, staffId, score, faceCrop, faceCropExpand) in zip(bboxs, names, similarities, faceCrops, faceCropExpands):
+            #Push to server
+            for (staffId, score, faceCropExpand) in zip(names, similarities, faceCropExpands):
                 if score > share_param.devconfig["DEV"]["face_reg_score"]:
-                    cv2.rectangle(rgb, (int(box[0]), int(box[1])), (int(
-                        box[2]), int(box[3])), (0, 255, 0), 2)
-                    y = box[1] - 15 if box[1] - 15 > 15 else box[1] + 15
-                    cv2.putText(rgb, "{} {:03.3f}".format(staffId, score), (int(box[0]), int(y)), cv2.FONT_HERSHEY_SIMPLEX,
-                                0.75, (0, 255, 0), 2)
+                    pass
                 else:
                     staffId = "unknown"
-                    cv2.rectangle(rgb, (int(box[0]), int(
+                pushserver.add_object_queue(staffId, deviceId, datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), faceCropExpand)
+                # support.custom_imshow(str(deviceId), faceCropExpand)
+
+            #Draw and display result
+            if rgb is None or rgb.size == 0:
+                continue
+            
+            for (box, staffId, score, faceCropExpand) in zip(bboxs, names, similarities, faceCropExpands):
+                if score > share_param.devconfig["DEV"]["face_reg_score"]:
+                    cv2.rectangle(faceCropExpand, (int(box[0]), int(box[1])), (int(
+                        box[2]), int(box[3])), (0, 255, 0), 2)
+                    y = box[1] - 15 if box[1] - 15 > 15 else box[1] + 15
+                    cv2.putText(faceCropExpand, "{} {:03.3f}".format(staffId, score), (int(box[0]), int(y)), cv2.FONT_HERSHEY_SIMPLEX,
+                                0.75, (0, 255, 0), 2)
+                else:
+                    cv2.rectangle(faceCropExpand, (int(box[0]), int(
                         box[1])), (int(box[2]), int(box[3])), (0, 0, 255), 2)
                     y = box[1] - 15 if box[1] - 15 > 15 else box[1] + 15
-                    cv2.putText(rgb, "{} {:03.3f}".format(staffId, score), (int(box[0]), int(y)), cv2.FONT_HERSHEY_SIMPLEX,
-                                0.75, (0, 0, 255), 2)
-
-                pushserver.add_object_queue(staffId, deviceId, datetime.datetime.now(
-                ).strftime("%Y-%m-%d %H:%M:%S"), faceCropExpand)
+                    cv2.putText(faceCropExpand, "{} {:03.3f}".format(staffId, score), (int(box[0]), int(y)), cv2.FONT_HERSHEY_SIMPLEX,
+                                0.75, (255, 0, 0), 2)
 
             support.custom_imshow(str(deviceId), cv2.resize(rgb, (500, 500)))
-
-            print("Recogn Time:", time.time() - totalTime)
-
 
 if __name__ == '__main__':
     folders_path = args["folders_path"]

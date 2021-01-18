@@ -287,10 +287,13 @@ if __name__ == '__main__':
     recogn_thread.start()
     pushserver_thread.start()
 
-    share_param.app = FaceRecogAPI(
-        share_param.system, folders_path, db_folder_path)
-    uvicorn.run(share_param.app, host=share_param.devconfig["APISERVER"]
-                ["host"], port=share_param.devconfig["APISERVER"]["port"])
+    if share_param.devconfig["APISERVER"]["is_server"]:
+        share_param.app = FaceRecogAPI(
+            share_param.system, folders_path, db_folder_path)
+        uvicorn.run(share_param.app, host=share_param.devconfig["APISERVER"]
+                    ["host"], port=share_param.devconfig["APISERVER"]["port"])
+    else:
+        detect_thread.join()
     share_param.bRunning = False
     fileserver.shutdown()
     cv2.destroyAllWindows()

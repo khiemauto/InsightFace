@@ -21,11 +21,13 @@
         "option_recogition": 2
     },
     "APISERVER": {
+        "is_server": true,
         "host": "192.168.1.111",
         "port": 8000,
         "add_recognition_queue": "/add_recognition_queue"
     },
     "FILESERVER": {
+        "enable": true,
         "host": "0.0.0.0",
         "port": 8001
     }

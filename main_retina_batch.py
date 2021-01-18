@@ -92,10 +92,13 @@ def stream_thread_fun(deviceID: int, camURL: str):
 
 
 def detect_thread_fun():
-    while share_param.bRunning:
+    if share_param.devconfig["DEV"]["option_detection"] != 1:
+        return
+
+    while share_param.bRunning: 
         # print( 'line', inspect.getframeinfo(inspect.currentframe()).lineno)
-        time.sleep(0.001)
         totalTime = time.time()
+        time.sleep(0.001)
         if share_param.stream_queue.qsize() < share_param.batch_size:
             continue
 
@@ -148,34 +151,27 @@ def detect_thread_fun():
                 landmark_keeps.append(np.asarray(rellandmark))
 
 
-            if len(bbox_keeps)==0 and len(landmark_keeps)==0:
+            if len(bbox_keeps)==0 or len(landmark_keeps)==0:
                 continue
             #Test web api
-            if share_param.devconfig["DEV"]["enable_recogition"]:
+            
+            if share_param.devconfig["DEV"]["option_recogition"] == share_param.RECOGN_LOCAL:
                 while share_param.detect_queue.qsize() > share_param.DETECT_SIZE*share_param.batch_size:
                     share_param.detect_queue.get()
                 share_param.detect_queue.put([deviceId, bbox_keeps, landmark_keeps, faceCropExpand_keeps, rgb])
             
-            else:
-                data_str = json.dumps({'deviceId': deviceId, 'bboxs': [bbox.tolist() for bbox in bbox_keeps], 'landmarks': [landmark.tolist() for landmark in landmark_keeps]})
-                data_json = {"data": data_str}
-                img_posts = []
-                for faceCropExpand in faceCropExpand_keeps:
-                    bgr_faceCropExpand = cv2.cvtColor(faceCropExpand, cv2.COLOR_RGB2BGR)
-                    _, buf = cv2.imencode(".jpg", bgr_faceCropExpand)
-                    filename = datetime.datetime.now().strftime("%Y%m%d%H%M%S%f") + ".jpg"
-                    img_post = ('faceCropExpandFiles', (filename, buf.tobytes(), 'image/jpeg'))
-                    img_posts.append(img_post)
-                    
-                if len(img_posts) > 0:
-                    r = requests.post(f"http://{share_param.devconfig['APISERVER']['host']}:{share_param.devconfig['APISERVER']['port']}/add_recognition_queue", files = img_posts, params=data_json, timeout=3)
-                    print(r.status_code, r.content)
-
-        # print("Detect Time:", time.time() - totalTime)
+            elif share_param.devconfig["DEV"]["option_recogition"] == share_param.RECOGN_CLOUD:
+                while share_param.push_detect_queue.qsize() > share_param.DETECT_SIZE*share_param.batch_size:
+                    share_param.push_detect_queue.get()
+                share_param.push_detect_queue.put([deviceId, bbox_keeps, landmark_keeps, faceCropExpand_keeps, rgb])
+            
+        print("Detect Time:", time.time() - totalTime)
 
 
 def recogn_thread_fun():
-    totalTime = time.time()
+    if share_param.devconfig["DEV"]["option_recogition"] != 1:
+        return
+        
     while share_param.bRunning:
         time.sleep(0.001)
         # print("Recogn Time:", time.time() - totalTime)
@@ -219,7 +215,7 @@ def recogn_thread_fun():
                     pass
                 else:
                     staffId = "unknown"
-                pushserver.add_object_queue(staffId, deviceId, datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), faceCropExpand)
+                pushserver.add_recogn_queue(staffId, deviceId, datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), faceCropExpand)
                 # support.custom_imshow(str(deviceId), faceCropExpand)
 
             #Draw and display result
@@ -262,6 +258,9 @@ if __name__ == '__main__':
         maxsize=share_param.DETECT_SIZE*share_param.batch_size+3)
     share_param.recogn_queue = queue.Queue(
         maxsize=share_param.RECOGN_SIZE*share_param.batch_size+3)
+
+    share_param.push_detect_queue = queue.Queue(
+        maxsize=share_param.DETECT_SIZE*share_param.batch_size+3)
 
     stream_threads = []
     for deviceID, camURL in share_param.cam_infos.items():

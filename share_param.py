@@ -29,11 +29,17 @@ stream_queue = None    #[deviceId, rgb]
 detect_queue = None    #[deviceId, bboxs, landmarks, faceCropExpands, rgb]
 recogn_queue = None    #{'EventId','UserName','DeviceId,'FaceId','RecordTime','FaceImg'}
 
+push_detect_queue = None    #[deviceId, bboxs, landmarks, faceCropExpands, rgb]
+
 GET_FACE_INFO_URL = 'get_face_info'
 GET_FACE_INFO_FILE = 'face_info.json'
 
 GET_LIST_DEVICE_URL = 'get_list_device'
 GET_LIST_DEVICE_FILE = 'list_device.json'
+
+RECOGN_NONE = 0
+RECOGN_LOCAL = 1
+RECOGN_CLOUD = 2
 
 #Hyperbol blur
 qi = 1345.33325

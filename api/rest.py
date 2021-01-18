@@ -102,19 +102,12 @@ class FaceRecogAPI(FastAPI):
             return JSONResponse(data, status_code=status.HTTP_200_OK)
 
         @self.post("/add_recognition_queue")
-        # async def add_recognition_queue(data: str):
         async def add_recognition_queue(data: str, faceCropExpandFiles: List[UploadFile] = File(...)):
-        # async def add_recognition_queue(deviceId: int, bboxs: List[List[float]]=Body(...), landmarks: List[List[float]]=Body(...), faceCropExpandFiles: List[UploadFile] = File(...)):
-        # async def add_recognition_queue(item: DetectionItem):
             """
             Recogni from image (112,112,3)
             file: image file (".jpg", ".jpeg", ".png", ".bmp")
             """
-            # print(deviceId)
-            # print(data)
-            # print(len(faceCropExpandFiles))
             json_data = json.loads(data)
-            # print(json_data)
 
             content = []
 
@@ -142,7 +135,7 @@ class FaceRecogAPI(FastAPI):
                 share_param.detect_queue.get()
 
             share_param.detect_queue.put(
-                [json_data["deviceId"], json_data["bboxs"], json_data["landmarks"], faceCropExpands, None])
+                [json_data["deviceId"], np.asarray(json_data["bboxs"]), np.asarray(json_data["landmarks"]), faceCropExpands, None])
 
             return JSONResponse(content, status_code=status.HTTP_200_OK)
 

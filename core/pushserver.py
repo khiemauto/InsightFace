@@ -2,8 +2,9 @@ import share_param
 import numpy as np
 from core import support
 import time, datetime, os, sys, cv2, requests
+import json
 
-def add_object_queue(user_name: str, device_id: str, track_time: str , face_img: np.array):
+def add_recogn_queue(user_name: str, device_id: str, track_time: str , face_img: np.array):
     face_id = share_param.face_infos[user_name]["FaceId"] if user_name in share_param.face_infos else -1
 
     data = {'EventId': "1",
@@ -19,12 +20,25 @@ def add_object_queue(user_name: str, device_id: str, track_time: str , face_img:
     elif face_id != -1:
         share_param.recogn_queue.put(data)
 
+
 def pushserver_thread_fun():
+    if share_param.devconfig["DEV"]["option_recogition"] == share_param.RECOGN_NONE:
+        pass
+
+    elif share_param.devconfig["DEV"]["option_recogition"] == share_param.RECOGN_LOCAL:
+        pushserver_recogn_info_fun()
+
+    elif share_param.devconfig["DEV"]["option_recogition"] == share_param.RECOGN_CLOUD:
+        pushserver_detect_info_fun()
+
+
+def pushserver_recogn_info_fun():
     url = support.create_url("face_upload")
     print("Full", url)
     lastTimeFaceID = {}
     while share_param.bRunning:
         time.sleep(0.001)
+        
         if share_param.recogn_queue.empty():
             continue
 
@@ -82,3 +96,27 @@ def pushserver_thread_fun():
         except:
             print("OOps: Post error")
         # print("post time: {}".format(time.time()-preTime))
+
+def pushserver_detect_info_fun():
+    while share_param.bRunning:
+        time.sleep(0.001)
+        if share_param.push_detect_queue.empty():
+            continue
+
+        deviceId, bbox_keeps, landmark_keeps, faceCropExpand_keeps, rgb = share_param.push_detect_queue.get()
+        print("F2",bbox_keeps,landmark_keeps )
+
+        data_json = {'deviceId': deviceId, 'bboxs': [bbox.tolist() for bbox in bbox_keeps], 'landmarks': [landmark.tolist() for landmark in landmark_keeps]}
+        data_str = json.dumps(data_json)
+        data_json = {"data": data_str}
+        img_posts = []
+        for faceCropExpand in faceCropExpand_keeps:
+            bgr_faceCropExpand = cv2.cvtColor(faceCropExpand, cv2.COLOR_RGB2BGR)
+            _, buf = cv2.imencode(".jpg", bgr_faceCropExpand)
+            filename = datetime.datetime.now().strftime("%Y%m%d%H%M%S%f") + ".jpg"
+            img_post = ('faceCropExpandFiles', (filename, buf.tobytes(), 'image/jpeg'))
+            img_posts.append(img_post)
+
+        if len(img_posts) > 0:
+            r = requests.post(f"http://{share_param.devconfig['APISERVER']['host']}:{share_param.devconfig['APISERVER']['port']}/add_recognition_queue", files = img_posts, params=data_json, timeout=3)
+            print(r.status_code, r.content)

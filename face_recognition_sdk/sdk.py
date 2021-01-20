@@ -134,6 +134,19 @@ class FaceRecognitionSDK:
         logger.debug("Finish searching for a descriptor in the database.")
         return indicies, distances
 
+    def find_most_similar_batch(self, descriptors: List[np.ndarray], top_k: int = 1):
+        """
+        Find most similar-looking photos (and their user id's) in the database.
+
+        Args:
+            descriptor: descriptor of the photo (face) to use as a search query.
+            top_k: number of most similar results to return.
+        """
+        logger.debug("Searching for a descriptor in the database.")
+        indicies, distances = self.database.find_batch(descriptors, top_k)
+        logger.debug("Finish searching for a descriptor in the database.")
+        return indicies, distances
+
     def verify_faces(self, first_face: np.ndarray, second_face: np.ndarray):
         """
         Check if two face images are of the same person.
@@ -199,6 +212,21 @@ class FaceRecognitionSDK:
         descriptor = self.embedder(face_image)
         logger.debug("Finish descriptor extraction.")
         return descriptor
+
+    def get_descriptor_batch(self, face_images: List[np.ndarray]) -> List[np.ndarray]:
+        """
+        Get descriptor of the face image.
+
+        Args:
+            face_images: list of numpy image (112,112,3) in RGB format.
+
+        Returns:
+            descriptors: list of float array of length 'descriptor_size' (default: 512).
+        """
+        logger.debug("Start descriptor extraction from image of face.")
+        descriptors = self.embedder.run_batch(face_images)
+        logger.debug("Finish descriptor extraction.")
+        return descriptors
 
     def get_similarity(self, first_descriptor: np.ndarray, second_descriptor: np.ndarray):
         """

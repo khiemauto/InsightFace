@@ -33,6 +33,11 @@ class FaissFaceStorage(BaseFaceStorage):
         distances, indicies = self.index.search(descriptor, top_k)
         return indicies[0], distances[0]
 
+    def find_batch(self, descriptors: List[np.ndarray], top_k: int) -> List[Tuple[int, int, np.ndarray]]:
+        """Add descriptor with specified user_id."""
+        distances, indicies = self.index.search(descriptors, top_k)
+        return indicies, distances
+
     def add_descriptor(self, descriptor: np.ndarray, photo_id: int) -> None:
         """Add descriptor with specified photo_id.
 

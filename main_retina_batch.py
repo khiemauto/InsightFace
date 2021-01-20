@@ -101,9 +101,8 @@ def detect_thread_fun():
     totalTime = time.time()
     while share_param.bRunning: 
         # print( 'line', inspect.getframeinfo(inspect.currentframe()).lineno)
-        time.sleep(0.001)
-        print("Detect Time:", time.time() - totalTime)
         totalTime = time.time()
+        time.sleep(0.001)
         if share_param.stream_queue.qsize() < share_param.batch_size:
             continue
 
@@ -163,6 +162,9 @@ def detect_thread_fun():
             #Draw
             for draw_bbox in draw_bboxs:
                 cv2.rectangle(rgb, (int(draw_bbox[0]), int(draw_bbox[1])), (int(draw_bbox[2]), int(draw_bbox[3])), (0, 255, 0), 2)
+
+            while share_param.imshow_queue.qsize() > share_param.IMSHOW_SIZE*share_param.batch_size:
+                    share_param.imshow_queue.get()
             share_param.imshow_queue.put((str(deviceId), cv2.resize(rgb, (500, 500))))
             #Skip for emtpy
             if len(bbox_keeps)==0 or len(landmark_keeps)==0:
@@ -178,16 +180,17 @@ def detect_thread_fun():
                     share_param.push_detect_queue.get()
                 share_param.push_detect_queue.put((deviceId, bbox_keeps, landmark_keeps, faceCropExpand_keeps, None))
 
+        # print("Detect Time:", time.time() - totalTime)
+
 def recogn_thread_fun():
     if share_param.devconfig["DEV"]["option_recogition"] != 1:
         return
     
     totalTime = time.time()
     while share_param.bRunning:
+        totalTime = time.time()
         time.sleep(0.001)
         # print("Recogn Time:", time.time() - totalTime)
-        totalTime = time.time()
-
         if share_param.detect_queue.qsize() < share_param.batch_size:
             continue
 
@@ -195,64 +198,64 @@ def recogn_thread_fun():
         for i in range(share_param.batch_size):
             recogn_inputs.append(share_param.detect_queue.get())
 
-        for batchId, (deviceId, bboxs, landmarks, faceCropExpands, rgb) in enumerate(recogn_inputs):
-            names = []
-            similarities = []
+        faceInfos = []
+        faceAligns = []
 
+        preTime = time.time()
+
+        for deviceId, bboxs, landmarks, faceCropExpands, rgb in recogn_inputs:
             for bbox, landmark, faceCropExpand in zip(bboxs, landmarks, faceCropExpands):
-                if faceCropExpand is None or faceCropExpand.size ==0:
-                    continue
-
-                if not share_param.system.photoid_to_username_photopath:
-                    names.append('unknown')
-                    similarities.append(0.0)
+                if faceCropExpand is None or faceCropExpand.size ==0 or landmark is None or landmark.size==0:
                     continue
 
                 faceAlign = share_param.system.sdk.align_face(faceCropExpand, landmark)
-                # support.custom_imshow(str(deviceId), faceAlign)
 
-                share_param.recog_lock.acquire()
-                descriptor = share_param.system.sdk.get_descriptor(faceAlign)
-                share_param.recog_lock.release()
-                indicies, distances = share_param.system.sdk.find_most_similar(
-                    descriptor)
-                user_name = share_param.system.get_user_name(indicies[0])
-                names.append(user_name)
-                similarities.append(distances[0])
+                faceInfos.append([deviceId, bbox, landmark, faceCropExpand])
+                faceAligns.append(faceAlign)
 
-            #Push to server
-            for (staffId, score, faceCropExpand) in zip(names, similarities, faceCropExpands):
-                if score > share_param.devconfig["DEV"]["face_reg_score"]:
-                    pass
-                else:
-                    staffId = "unknown"
-                pushserver.add_recogn_queue(staffId, deviceId, datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), faceCropExpand)
-                # support.custom_imshow(str(deviceId), faceCropExpand)
+        if len(faceAligns) == 0:
+            continue
 
-            #Draw and display result
-            # if rgb is None or rgb.size == 0:
-            #     continue
+        print("Align Time:", time.time() - preTime)
+        preTime = time.time()
+        share_param.recog_lock.acquire()
+        descriptors = share_param.system.sdk.get_descriptor_batch(faceAligns)
+        share_param.recog_lock.release()
 
-            # for (box, staffId, score, faceCropExpand) in zip(bboxs, names, similarities, faceCropExpands):
-            #     if score > share_param.devconfig["DEV"]["face_reg_score"]:
-            #         cv2.rectangle(faceCropExpand, (int(box[0]), int(box[1])), (int(
-            #             box[2]), int(box[3])), (0, 255, 0), 2)
-            #         y = box[1] - 15 if box[1] - 15 > 15 else box[1] + 15
-            #         cv2.putText(faceCropExpand, "{} {:03.3f}".format(staffId, score), (int(box[0]), int(y)), cv2.FONT_HERSHEY_SIMPLEX,
-            #                     0.75, (0, 255, 0), 2)
-            #     else:
-            #         cv2.rectangle(faceCropExpand, (int(box[0]), int(
-            #             box[1])), (int(box[2]), int(box[3])), (0, 0, 255), 2)
-            #         y = box[1] - 15 if box[1] - 15 > 15 else box[1] + 15
-            #         cv2.putText(faceCropExpand, "{} {:03.3f}".format(staffId, score), (int(box[0]), int(y)), cv2.FONT_HERSHEY_SIMPLEX,
-            #                     0.75, (255, 0, 0), 2)
+        print("Description Time:", time.time() - preTime)
+        preTime = time.time()
+        indicies = []
+        distances = []
+        if not share_param.system.photoid_to_username_photopath:
+            for faceInfo in faceInfos:
+                faceInfo.append('unknown')
+                faceInfo.append(0.0)
+        else:
+            indicies, distances = share_param.system.sdk.find_most_similar_batch(descriptors)
 
-            # share_param.imshow_queue.put([str(deviceId), cv2.resize(rgb, (500, 500))])
+            for faceInfo, indicie, distance in zip(faceInfos, indicies, distances):
+                user_name = share_param.system.get_user_name(indicie[0])
+                faceInfo.append(user_name)
+                faceInfo.append(distance[0])
 
-def imshow_thread_fun():
-    if not share_param.devconfig["DEV"]["imshow"]:
-        return
+        print("Similar Time:", time.time() - preTime)
+        preTime = time.time()
+
+        for deviceId, bbox, landmark, faceCropExpand, user_name, score in faceInfos:
+            if score > share_param.devconfig["DEV"]["face_reg_score"]:
+                while share_param.imshow_queue.qsize() > share_param.IMSHOW_SIZE*share_param.batch_size:
+                    share_param.imshow_queue.get()
+                share_param.imshow_queue.put((str(deviceId) + user_name, faceCropExpand))
+                print(user_name)
+            else:
+                user_name = "unknown"
+            pushserver.add_recogn_queue(user_name, deviceId, datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), faceCropExpand)
         
+        print("Push Time:", time.time() - preTime)
+        
+        # print("Recogn Time:", time.time() - totalTime)
+
+def imshow_thread_fun():        
     while share_param.bRunning:
         time.sleep(0.01)
         while not share_param.imshow_queue.empty():
@@ -288,10 +291,11 @@ if __name__ == '__main__':
         maxsize=share_param.DETECT_SIZE*share_param.batch_size+3)
 
     share_param.imshow_queue = queue.Queue(
-        maxsize=share_param.DETECT_SIZE*share_param.batch_size+3)
+        maxsize=share_param.IMSHOW_SIZE*share_param.batch_size+3)
 
     stream_threads = []
     for deviceID, camURL in share_param.cam_infos.items():
+        # if deviceID == 41:
         stream_threads.append(threading.Thread(
             target=stream_thread_fun, daemon=True, args=(deviceID, camURL)))
 

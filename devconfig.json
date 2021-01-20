@@ -14,11 +14,11 @@
     },
     "DEV": {
         "__comment": "option_recogition: 0-not recogn(detect), 1-local recogn(detect), 2-cloud recogn",
-        "imshow": true,
+        "imshow": false,
         "print": true,
         "face_reg_score": 0.7,
         "option_detection": 1,
-        "option_recogition": 2
+        "option_recogition": 1
     },
     "APISERVER": {
         "is_server": true,

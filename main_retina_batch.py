@@ -24,8 +24,9 @@ from core import support, pushserver
 import numpy as np
 import requests
 import json
-import curlify
+from core.tracking import Tracking
 
+test = Tracking()
 
 ap = argparse.ArgumentParser()
 ap.add_argument("-fp", "--folders_path", default=None,
@@ -53,6 +54,9 @@ def stream_thread_fun(deviceID: int, camURL: str):
 
     if not cap or not cap.isOpened():
         print(f"[ERROR] Camera not open {camURL}")
+    
+    else:
+        print(f"[INFO] Camera opened {camURL}")
 
     FrameID = 1
     timeStep = 1/15  # 10FPS
@@ -85,7 +89,7 @@ def stream_thread_fun(deviceID: int, camURL: str):
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         while share_param.stream_queue.qsize() > share_param.STREAM_SIZE*share_param.batch_size:
             share_param.stream_queue.get()
-        share_param.stream_queue.put([deviceId, frame])
+        share_param.stream_queue.put((deviceId, frame))
 
     if cap:
         cap.release()
@@ -94,11 +98,12 @@ def stream_thread_fun(deviceID: int, camURL: str):
 def detect_thread_fun():
     if share_param.devconfig["DEV"]["option_detection"] != 1:
         return
-
+    totalTime = time.time()
     while share_param.bRunning: 
         # print( 'line', inspect.getframeinfo(inspect.currentframe()).lineno)
-        totalTime = time.time()
         time.sleep(0.001)
+        print("Detect Time:", time.time() - totalTime)
+        totalTime = time.time()
         if share_param.stream_queue.qsize() < share_param.batch_size:
             continue
 
@@ -106,8 +111,8 @@ def detect_thread_fun():
         preTime = time.time()
 
         for batchId in range(share_param.batch_size):
-            deviceId, rgb = share_param.stream_queue.get()
-            detect_inputs.append([deviceId, rgb])
+            detect_input = share_param.stream_queue.get()
+            detect_inputs.append(detect_input)
 
         preTime = time.time()
         for batchId, (deviceId, rgb) in enumerate(detect_inputs):
@@ -117,6 +122,9 @@ def detect_thread_fun():
             bbox_keeps = []
             landmark_keeps = []
             faceCropExpand_keeps = []
+
+            draw_bboxs = []
+            draw_landmarks = []
 
             for bbox, landmark in zip(bboxes, landmarks):
                 # Skip blur face
@@ -137,42 +145,44 @@ def detect_thread_fun():
                 expandTop = max(0, bbox[1] - faceH/3)
                 expandRight = min(bbox[2] + faceW/3, rgb.shape[1])
                 expandBottom = min(bbox[3] + faceH/3, rgb.shape[0])
-                faceCropExpand = rgb[int(expandTop):int(expandBottom), int(expandLeft):int(expandRight)]
+                faceCropExpand = rgb[int(expandTop):int(expandBottom), int(expandLeft):int(expandRight)].copy()
                 faceCropExpand_keeps.append(faceCropExpand)
+
+                draw_bboxs.append(bbox)
+                draw_landmarks.append(landmark)
 
                 #Mov abs position to faceCropExpand coordinate
                 relbox = [bbox[0]-expandLeft, bbox[1]-expandTop, bbox[2]-expandLeft, bbox[3]-expandTop, bbox[4]]
-
                 rellandmark = landmark.reshape((5,2), order= "F")
                 rellandmark = rellandmark-[expandLeft, expandTop]
                 rellandmark = rellandmark.ravel(order= "F")
 
                 bbox_keeps.append(np.asarray(relbox))
                 landmark_keeps.append(np.asarray(rellandmark))
-
-
+                
+            #Draw
+            for draw_bbox in draw_bboxs:
+                cv2.rectangle(rgb, (int(draw_bbox[0]), int(draw_bbox[1])), (int(draw_bbox[2]), int(draw_bbox[3])), (0, 255, 0), 2)
+            share_param.imshow_queue.put((str(deviceId), cv2.resize(rgb, (500, 500))))
+            #Skip for emtpy
             if len(bbox_keeps)==0 or len(landmark_keeps)==0:
                 continue
-            #Test web api
             
             if share_param.devconfig["DEV"]["option_recogition"] == share_param.RECOGN_LOCAL:
                 while share_param.detect_queue.qsize() > share_param.DETECT_SIZE*share_param.batch_size:
                     share_param.detect_queue.get()
-                share_param.detect_queue.put([deviceId, bbox_keeps, landmark_keeps, faceCropExpand_keeps, rgb])
+                share_param.detect_queue.put((deviceId, bbox_keeps, landmark_keeps, faceCropExpand_keeps, None))
             
             elif share_param.devconfig["DEV"]["option_recogition"] == share_param.RECOGN_CLOUD:
                 while share_param.push_detect_queue.qsize() > share_param.DETECT_SIZE*share_param.batch_size:
                     share_param.push_detect_queue.get()
-                share_param.push_detect_queue.put([deviceId, bbox_keeps, landmark_keeps, faceCropExpand_keeps, None])
-                support.custom_imshow(str(deviceId), cv2.resize(rgb, (500, 500)))
-            
-        print("Detect Time:", time.time() - totalTime)
-
+                share_param.push_detect_queue.put((deviceId, bbox_keeps, landmark_keeps, faceCropExpand_keeps, None))
 
 def recogn_thread_fun():
     if share_param.devconfig["DEV"]["option_recogition"] != 1:
         return
-        
+    
+    totalTime = time.time()
     while share_param.bRunning:
         time.sleep(0.001)
         # print("Recogn Time:", time.time() - totalTime)
@@ -220,24 +230,37 @@ def recogn_thread_fun():
                 # support.custom_imshow(str(deviceId), faceCropExpand)
 
             #Draw and display result
-            if rgb is None or rgb.size == 0:
-                continue
-            
-            for (box, staffId, score, faceCropExpand) in zip(bboxs, names, similarities, faceCropExpands):
-                if score > share_param.devconfig["DEV"]["face_reg_score"]:
-                    cv2.rectangle(faceCropExpand, (int(box[0]), int(box[1])), (int(
-                        box[2]), int(box[3])), (0, 255, 0), 2)
-                    y = box[1] - 15 if box[1] - 15 > 15 else box[1] + 15
-                    cv2.putText(faceCropExpand, "{} {:03.3f}".format(staffId, score), (int(box[0]), int(y)), cv2.FONT_HERSHEY_SIMPLEX,
-                                0.75, (0, 255, 0), 2)
-                else:
-                    cv2.rectangle(faceCropExpand, (int(box[0]), int(
-                        box[1])), (int(box[2]), int(box[3])), (0, 0, 255), 2)
-                    y = box[1] - 15 if box[1] - 15 > 15 else box[1] + 15
-                    cv2.putText(faceCropExpand, "{} {:03.3f}".format(staffId, score), (int(box[0]), int(y)), cv2.FONT_HERSHEY_SIMPLEX,
-                                0.75, (255, 0, 0), 2)
+            # if rgb is None or rgb.size == 0:
+            #     continue
 
-            support.custom_imshow(str(deviceId), cv2.resize(rgb, (500, 500)))
+            # for (box, staffId, score, faceCropExpand) in zip(bboxs, names, similarities, faceCropExpands):
+            #     if score > share_param.devconfig["DEV"]["face_reg_score"]:
+            #         cv2.rectangle(faceCropExpand, (int(box[0]), int(box[1])), (int(
+            #             box[2]), int(box[3])), (0, 255, 0), 2)
+            #         y = box[1] - 15 if box[1] - 15 > 15 else box[1] + 15
+            #         cv2.putText(faceCropExpand, "{} {:03.3f}".format(staffId, score), (int(box[0]), int(y)), cv2.FONT_HERSHEY_SIMPLEX,
+            #                     0.75, (0, 255, 0), 2)
+            #     else:
+            #         cv2.rectangle(faceCropExpand, (int(box[0]), int(
+            #             box[1])), (int(box[2]), int(box[3])), (0, 0, 255), 2)
+            #         y = box[1] - 15 if box[1] - 15 > 15 else box[1] + 15
+            #         cv2.putText(faceCropExpand, "{} {:03.3f}".format(staffId, score), (int(box[0]), int(y)), cv2.FONT_HERSHEY_SIMPLEX,
+            #                     0.75, (255, 0, 0), 2)
+
+            # share_param.imshow_queue.put([str(deviceId), cv2.resize(rgb, (500, 500))])
+
+def imshow_thread_fun():
+    if not share_param.devconfig["DEV"]["imshow"]:
+        return
+        
+    while share_param.bRunning:
+        time.sleep(0.01)
+        while not share_param.imshow_queue.empty():
+            title, image = share_param.imshow_queue.get()
+            if share_param.devconfig["DEV"]["imshow"]:
+                cv2.imshow(title, image)
+            cv2.waitKey(10)
+
 
 if __name__ == '__main__':
     folders_path = args["folders_path"]
@@ -252,6 +275,7 @@ if __name__ == '__main__':
     share_param.system.load_database(db_folder_path)
 
     share_param.cam_infos, share_param.face_infos = initiation()
+    # print(len(share_param.cam_infos))
     share_param.batch_size = len(share_param.cam_infos)
     share_param.stream_queue = queue.Queue(
         maxsize=share_param.STREAM_SIZE*share_param.batch_size+3)
@@ -261,6 +285,9 @@ if __name__ == '__main__':
         maxsize=share_param.RECOGN_SIZE*share_param.batch_size+3)
 
     share_param.push_detect_queue = queue.Queue(
+        maxsize=share_param.DETECT_SIZE*share_param.batch_size+3)
+
+    share_param.imshow_queue = queue.Queue(
         maxsize=share_param.DETECT_SIZE*share_param.batch_size+3)
 
     stream_threads = []
@@ -274,6 +301,10 @@ if __name__ == '__main__':
         target=recogn_thread_fun, daemon=True, args=())
     pushserver_thread = threading.Thread(
         target=pushserver.pushserver_thread_fun, daemon=True, args=())
+
+    imshow_thread = threading.Thread(
+        target=imshow_thread_fun, daemon=True, args=())
+
     fileserver = socketserver.TCPServer(
         (share_param.devconfig["FILESERVER"]["host"], share_param.devconfig["FILESERVER"]["port"]), http.server.SimpleHTTPRequestHandler)
     file_thread = threading.Thread(
@@ -287,6 +318,7 @@ if __name__ == '__main__':
     detect_thread.start()
     recogn_thread.start()
     pushserver_thread.start()
+    imshow_thread.start()
 
     if share_param.devconfig["APISERVER"]["is_server"]:
         share_param.app = FaceRecogAPI(

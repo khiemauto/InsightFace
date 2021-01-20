@@ -1,7 +1,6 @@
 import threading
 import logging
 import queue
-from dataclasses import dataclass
 from typing import List
 import numpy as np
 
@@ -31,6 +30,8 @@ recogn_queue = None    #{'EventId','UserName','DeviceId,'FaceId','RecordTime','F
 
 push_detect_queue = None    #[deviceId, bboxs, landmarks, faceCropExpands, rgb]
 
+imshow_queue = None    #[title, image]
+
 GET_FACE_INFO_URL = 'get_face_info'
 GET_FACE_INFO_FILE = 'face_info.json'
 
@@ -45,25 +46,3 @@ RECOGN_CLOUD = 2
 qi = 1345.33325
 b = 0.52109685
 di = 2.3316e-04
-
-#Meta data
-# @dataclass
-# class FaceData:
-#     def __init__(self) -> None:
-#         self.FaceID: int
-#         self.UserName: str
-#         self.bbox: np.ndarray
-#         self.landmark: np.ndarray
-#         self.reg_score: float
-#         self.FaceAlign: np.ndarray
-#         self.FaceExpand: np.ndarray
-
-# # @dataclass
-# class FrameData:
-#     def __init__(self) -> None:
-#         self.Frame: np.ndarray
-#         self.DeviceID: int = -1
-#         self.FrameID: int = -1
-#         self.FaceDataList: List[FaceData] = []
-
-    

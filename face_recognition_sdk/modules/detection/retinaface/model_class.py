@@ -2,6 +2,7 @@ import torch
 import numpy as np
 import yaml
 import cv2
+from typing import List
 
 from torch import Tensor
 from pathlib import Path
@@ -145,3 +146,120 @@ class RetinaFace(BaseFaceDetector):
 
     def _get_raw_model(self):
         return self.model
+
+    #Batch run
+    def _preprocess_batch(self, images: List[np.ndarray]) -> List[np.ndarray]:
+        imgs = []
+        for image in images:
+            image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+            img = np.float32(image)
+            target_size = self.config["image_size"]
+            max_size = 2150
+            im_shape = img.shape
+            im_size_min = np.min(im_shape[:2])
+            im_size_max = np.max(im_shape[:2])
+            resize = float(target_size) / float(im_size_min)
+
+            # prevent bigger axis from being more than max_size:
+            if np.round(resize * im_size_max) > max_size:
+                resize = float(max_size) / float(im_size_max)
+            if self.config.get("origin_size", False):
+                resize = 1
+
+            self.resize_scale = resize
+            if resize != 1:
+                img = cv2.resize(image, None, None, fx=resize, fy=resize, interpolation=cv2.INTER_LINEAR)
+
+            img = img.astype(np.float32)
+            img -= np.asarray((104, 117, 123), dtype=np.float32)
+            imgs.append(img)
+        return imgs
+
+    def _predict_raw_batch(self, images: List[np.ndarray]) -> Tuple[Tensor, Tensor, Tensor]:
+        imgs = []
+        for image in images:
+            img = image.transpose((2, 0, 1))
+            imgs.append(torch.from_numpy(img))
+
+        imgs = torch.stack(imgs).to(self.device)
+        pred = self.model(imgs)
+        return pred
+
+    def _postprocess_batch(self, raw_predictions: List[Tuple[Tensor, Tensor, Tensor]]) -> List[Tuple[np.ndarray, np.ndarray]]:
+        dets_batch = []
+        landms_batch = []
+        locs, confs, landmss = raw_predictions
+        # print(len(locs), len(confs), len(landmss))
+        for loc, conf, landms in zip(locs, confs, landmss):
+            # print(len(raw_prediction[0]), len(raw_prediction[1]), len(raw_prediction[2]))
+            # loc, conf, landms = raw_prediction
+            img_h, img_w = self.model_input_shape[:2]
+            scale = torch.tensor([img_w, img_h, img_w, img_h], dtype=torch.float)
+            scale = scale.to(self.device)
+
+            priorbox = PriorBox(self.model_config, image_size=(img_h, img_w))
+            priors = priorbox.forward()
+            priors = priors.to(self.device)
+            prior_data = priors.data
+            boxes = decode(loc.data.squeeze(0), prior_data, self.model_config["variance"])
+            boxes = boxes * scale / self.resize_scale
+            boxes = boxes.cpu().numpy()
+
+            scores = conf.squeeze(0).data.cpu().numpy()[:, 1]
+
+            landms = decode_landm(landms.data.squeeze(0), prior_data, self.model_config["variance"])
+            scale1 = torch.tensor([img_w, img_h, img_w, img_h, img_w, img_h, img_w, img_h, img_w, img_h], dtype=torch.float)
+            scale1 = scale1.to(self.device)
+            landms = landms * scale1 / self.resize_scale
+            landms = landms.cpu().numpy()
+
+            # ignore low scores
+            inds = np.where(scores > self.config["conf_threshold"])[0]
+            boxes = boxes[inds]
+            landms = landms[inds]
+            scores = scores[inds]
+
+            # keep top-K before NMS
+            order = scores.argsort()[::-1]
+            # order = scores.argsort()[::-1][:args.top_k]
+            boxes = boxes[order]
+            landms = landms[order]
+            scores = scores[order]
+
+            # do NMS
+            dets = np.hstack((boxes, scores[:, np.newaxis])).astype(np.float32, copy=False)
+            keep = py_cpu_nms(dets, self.config["nms_threshold"])
+            # keep = nms(dets, args.nms_threshold,force_cpu=args.cpu)
+            dets = dets[keep, :]
+            landms = landms[keep]
+
+            dets_batch.append(dets)
+            landms_batch.append(landms)
+
+        return dets_batch, landms_batch
+
+    def predict_batch(self, images: List[np.ndarray]) -> List[Tuple[np.ndarray, np.ndarray]]:
+        images = self._preprocess_batch(images)
+        self.model_input_shape = images[0].shape
+        raw_preds = self._predict_raw_batch(images)
+        bboxes_batch, landms_batch = self._postprocess_batch(raw_preds)
+
+        # print(len(bboxes_batch), len(landms_batch))
+
+        landmarks_batch = []
+        for bboxes, landms in zip(bboxes_batch, landms_batch):
+            converted_landmarks = []
+            # convert to our landmark format (2,5)
+            for landmarks_set in landms:
+                x_landmarks = []
+                y_landmarks = []
+                for i, lm in enumerate(landmarks_set):
+                    if i % 2 == 0:
+                        x_landmarks.append(lm)
+                    else:
+                        y_landmarks.append(lm)
+                converted_landmarks.append(x_landmarks + y_landmarks)
+
+            landmarks_batch.append(np.array(converted_landmarks))
+
+        return bboxes_batch, landmarks_batch

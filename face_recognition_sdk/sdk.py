@@ -174,6 +174,18 @@ class FaceRecognitionSDK:
         logger.debug(f"Finish faces detection. Count of detected faces: {len(bboxes)}.")
         return bboxes, landmarks
 
+    def detect_faces_batch(self, images: List[np.ndarray]):
+        """
+        Detect all faces on the image.
+
+        Args:
+            image: numpy image (H,W,3) in RGB format.
+        """
+        logger.debug("Start faces detection.")
+        bboxes_batch, landmarks_batch = self.detector.predict_batch(images)
+        logger.debug(f"Finish faces detection. Count of detected faces: {len(bboxes_batch)}.")
+        return bboxes_batch, landmarks_batch
+
     def recognize_faces(self, image: np.ndarray):
         """
         Recognize all faces on the image.

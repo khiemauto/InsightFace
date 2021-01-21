@@ -114,10 +114,17 @@ def detect_thread_fun():
             detect_inputs.append(detect_input)
 
         preTime = time.time()
-        for batchId, (deviceId, rgb) in enumerate(detect_inputs):
-            share_param.detect_lock.acquire()
-            bboxes, landmarks = share_param.system.sdk.detect_faces(rgb)
-            share_param.detect_lock.release()
+        rgbs = []
+        for (deviceId, rgb) in detect_inputs:
+            rgbs.append(rgb)
+
+        share_param.detect_lock.acquire()
+        bboxes_batch, landmarks_batch = share_param.system.sdk.detect_faces_batch(rgbs)
+        share_param.detect_lock.release()
+
+        del rgbs
+
+        for bboxes, landmarks, (deviceId, rgb) in zip(bboxes_batch, landmarks_batch, detect_inputs):
             bbox_keeps = []
             landmark_keeps = []
             faceCropExpand_keeps = []
@@ -180,7 +187,7 @@ def detect_thread_fun():
                     share_param.push_detect_queue.get()
                 share_param.push_detect_queue.put((deviceId, bbox_keeps, landmark_keeps, faceCropExpand_keeps, None))
 
-        # print("Detect Time:", time.time() - totalTime)
+        print("Detect Time:", time.time() - totalTime)
 
 def recogn_thread_fun():
     if share_param.devconfig["DEV"]["option_recogition"] != 1:
@@ -222,6 +229,8 @@ def recogn_thread_fun():
         descriptors = share_param.system.sdk.get_descriptor_batch(faceAligns)
         share_param.recog_lock.release()
 
+        del faceAligns
+
         print("Description Time:", time.time() - preTime)
         preTime = time.time()
         indicies = []
@@ -243,9 +252,9 @@ def recogn_thread_fun():
 
         for deviceId, bbox, landmark, faceCropExpand, user_name, score in faceInfos:
             if score > share_param.devconfig["DEV"]["face_reg_score"]:
-                while share_param.imshow_queue.qsize() > share_param.IMSHOW_SIZE*share_param.batch_size:
-                    share_param.imshow_queue.get()
-                share_param.imshow_queue.put((str(deviceId) + user_name, faceCropExpand))
+                # while share_param.imshow_queue.qsize() > share_param.IMSHOW_SIZE*share_param.batch_size:
+                #     share_param.imshow_queue.get()
+                # share_param.imshow_queue.put((str(deviceId) + user_name, faceCropExpand))
                 print(user_name)
             else:
                 user_name = "unknown"

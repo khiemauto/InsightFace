@@ -22,6 +22,13 @@ def read_image(path: str):
 
     return image
 
+def read_image_from_bytes(buf: bytes):
+    """Reads an image in RGB format."""
+    image = np.frombuffer(buf, dtype="uint8")
+    image = cv2.imdecode(image, cv2.IMREAD_COLOR)
+    assert image is not None, f"buffer returns empty image."
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    return image
 
 def save_image(image: np.ndarray, path: str):
 

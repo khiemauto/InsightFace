@@ -80,8 +80,8 @@ class FaceRecognitionSDK:
 
         logger.debug("Finish face extraction")
         return descriptor, face_coordinates
-
-    def add_photo_by_user_id(self, image: np.ndarray, user_id: int):
+    
+    def add_photo_by_photo_id(self, image: np.ndarray, photo_id: int):
         """
         Adds photo of the user to the database.
 
@@ -89,27 +89,27 @@ class FaceRecognitionSDK:
             image: numpy image (H,W,3) in RGB format.
             user_id: id of the user.
         """
-        logger.info(f"Adding photo of user with user_id={user_id}")
+        logger.info(f"Adding photo with photo_id={photo_id}")
         descriptor, _ = self.extract_face_descriptor(image)
-        self.add_descriptor(descriptor, user_id)
-        logger.debug(f"Finish adding user photo for user_id={user_id}")
+        self.add_descriptor(descriptor, photo_id)
+        logger.debug(f"Finish adding photo for photo_id={photo_id}")
 
-    def add_descriptor(self, descriptor: np.ndarray, user_id: int) -> Tuple[None, int]:
+    def add_descriptor(self, descriptor: np.ndarray, photo_id: int) -> Tuple[None, int]:
         """
-        Add descriptor for user specified by 'user_id'.
+        Add descriptor specified by 'photo_id'.
 
         Args:
             descriptor: descriptor of the photo (face) to use as a search query.
-            user_id: if of the user
+            descriptor_id: id of descriptor
 
         Returns:
 
         """
-        logger.info(f"Adding descriptor for user with user_id={user_id}")
-        self.database.add_descriptor(descriptor, user_id)
-        logger.debug(f"Finish adding descriptor for user with user_id={user_id}")
+        logger.info(f"Adding descriptor with photo_id={photo_id}")
+        self.database.add_descriptor(descriptor, photo_id)
+        logger.debug(f"Finish adding descriptor with photo_id={photo_id}")
 
-    def delete_photo_by_id(self, photo_id: int) -> None:
+    def delete_photo_by_photo_id(self, photo_id: int) -> None:
         """
         Removes photo (descriptor) from the database.
 
@@ -117,18 +117,9 @@ class FaceRecognitionSDK:
             photo_id: id of the photo in the database.
 
         """
-        raise NotImplementedError()
-
-    def delete_user_by_id(self, user_id: int) -> None:
-        """
-        Removes all photos of the user from the database.
-
-        Args:
-            user_id: id of the user.
-        """
-        logger.info(f"Deleting user with user_id={user_id} from faces descriptors database.")
-        self.database.remove_user(user_id)
-        logger.debug(f"Finish deleting user with user_id={user_id} from faces descriptors database.")
+        logger.info(f"Deleting photo with photo_id={photo_id} from faces descriptors database.")
+        self.database.remove_descriptor(photo_id)
+        logger.debug(f"Finish deleting photo with photo_id={photo_id} from faces descriptors database.")
 
     def find_most_similar(self, descriptor: np.ndarray, top_k: int = 1):
         """
@@ -140,6 +131,19 @@ class FaceRecognitionSDK:
         """
         logger.debug("Searching for a descriptor in the database.")
         indicies, distances = self.database.find(descriptor, top_k)
+        logger.debug("Finish searching for a descriptor in the database.")
+        return indicies, distances
+
+    def find_most_similar_batch(self, descriptors: List[np.ndarray], top_k: int = 1):
+        """
+        Find most similar-looking photos (and their user id's) in the database.
+
+        Args:
+            descriptor: descriptor of the photo (face) to use as a search query.
+            top_k: number of most similar results to return.
+        """
+        logger.debug("Searching for a descriptor in the database.")
+        indicies, distances = self.database.find_batch(descriptors, top_k)
         logger.debug("Finish searching for a descriptor in the database.")
         return indicies, distances
 
@@ -170,6 +174,18 @@ class FaceRecognitionSDK:
         logger.debug(f"Finish faces detection. Count of detected faces: {len(bboxes)}.")
         return bboxes, landmarks
 
+    def detect_faces_batch(self, images: List[np.ndarray]):
+        """
+        Detect all faces on the image.
+
+        Args:
+            image: numpy image (H,W,3) in RGB format.
+        """
+        logger.debug("Start faces detection.")
+        bboxes_batch, landmarks_batch = self.detector.predict_batch(images)
+        logger.debug(f"Finish faces detection. Count of detected faces: {len(bboxes_batch)}.")
+        return bboxes_batch, landmarks_batch
+
     def recognize_faces(self, image: np.ndarray):
         """
         Recognize all faces on the image.
@@ -180,7 +196,7 @@ class FaceRecognitionSDK:
         logger.debug("Start faces recognition.")
         bboxes, landmarks = self.detect_faces(image)
 
-        user_ids = []
+        photo_ids = []
         similarities = []
 
         for i, face_keypoints in enumerate(landmarks):
@@ -188,11 +204,11 @@ class FaceRecognitionSDK:
             face = self.align_face(image, face_keypoints)
             descriptor = self.get_descriptor(face)
             indicies, distances = self.find_most_similar(descriptor)
-            user_ids.append(indicies[0])
+            photo_ids.append(indicies[0])
             similarities.append(distances[0])
 
         logger.debug(f"Finish faces recognition. Count of processed faces: {len(bboxes)}")
-        return bboxes, landmarks, user_ids, similarities
+        return bboxes, landmarks, photo_ids, similarities
 
     def get_descriptor(self, face_image: np.ndarray) -> np.ndarray:
         """
@@ -209,6 +225,21 @@ class FaceRecognitionSDK:
         logger.debug("Finish descriptor extraction.")
         return descriptor
 
+    def get_descriptor_batch(self, face_images: List[np.ndarray]) -> List[np.ndarray]:
+        """
+        Get descriptor of the face image.
+
+        Args:
+            face_images: list of numpy image (112,112,3) in RGB format.
+
+        Returns:
+            descriptors: list of float array of length 'descriptor_size' (default: 512).
+        """
+        logger.debug("Start descriptor extraction from image of face.")
+        descriptors = self.embedder.run_batch(face_images)
+        logger.debug("Finish descriptor extraction.")
+        return descriptors
+
     def get_similarity(self, first_descriptor: np.ndarray, second_descriptor: np.ndarray):
         """
         Calculate dot similarity of 2 descriptors
@@ -219,8 +250,6 @@ class FaceRecognitionSDK:
         Returns:
             similarity: similarity score. Value - from 0 to 1.
         """
-        # similarity = np.dot(first_descriptor,second_descriptor)/(np.linalg.norm(first_descriptor)*np.linalg.norm(second_descriptor))
-        # using cosine similarity for calculation
         similarity = np.dot(first_descriptor, second_descriptor)
         return similarity
 

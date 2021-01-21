@@ -1,3 +1,4 @@
+from typing import List
 import numpy as np
 import torch
 from torchvision import transforms
@@ -53,3 +54,24 @@ class InsightFaceEmbedder(BaseFaceEmbedder):
 
     def _get_raw_model(self):
         return self.embedder
+
+    #Batch run
+    def _preprocess_batch(self, faces: List[np.ndarray]) -> List[torch.Tensor]:
+        face_tensors = []
+        for face in faces:
+            face_tensors.append(self.preprocess(face))
+        return face_tensors
+
+    def _predict_raw_batch(self, faces: List[torch.Tensor]) -> torch.Tensor:
+        with torch.no_grad():
+            faces = torch.stack(faces).to(self.device)
+            features = self.embedder(faces)
+        return features
+
+    def _postprocess_batch(self, raw_predictions: torch.Tensor) -> np.ndarray:
+        raw_predictions = raw_predictions.cpu().numpy()
+        descriptors = raw_predictions / np.linalg.norm(raw_predictions, axis=1)[:,None]
+        return descriptors
+    
+    def run_batch(self, images: List[np.ndarray]) -> List[np.ndarray]:
+        return self._postprocess_batch(self._predict_raw_batch(self._preprocess_batch(images)))

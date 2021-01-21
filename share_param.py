@@ -19,6 +19,7 @@ face_infos = {}
 bRunning = False
 
 batch_size = 1
+MAX_BATCH_SIZE = 32
 
 STREAM_SIZE = 5
 DETECT_SIZE = 5

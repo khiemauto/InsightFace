@@ -198,11 +198,11 @@ def recogn_thread_fun():
         totalTime = time.time()
         time.sleep(0.001)
         # print("Recogn Time:", time.time() - totalTime)
-        if share_param.detect_queue.qsize() < share_param.batch_size:
+        if share_param.detect_queue.empty():
             continue
 
         recogn_inputs = []
-        for i in range(share_param.batch_size):
+        while not share_param.detect_queue.empty() and len(recogn_inputs)<share_param.MAX_BATCH_SIZE:
             recogn_inputs.append(share_param.detect_queue.get())
 
         faceInfos = []

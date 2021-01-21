@@ -6,7 +6,8 @@ from torchvision import transforms
 from . import nets
 
 from ..base_embedder import BaseFaceEmbedder
-
+from torch2trt import torch2trt, TRTModule
+from pathlib import Path
 
 class InsightFaceEmbedder(BaseFaceEmbedder):
 
@@ -17,17 +18,28 @@ class InsightFaceEmbedder(BaseFaceEmbedder):
         self.device = config["device"]
         architecture = config["architecture"]
 
-        if architecture == "iresnet34":
-            self.embedder = nets.iresnet34(pretrained=True)
-        elif architecture == "iresnet50":
-            self.embedder = nets.iresnet50(pretrained=True)
-        elif architecture == "iresnet100":
-            self.embedder = nets.iresnet100(pretrained=True)
-        else:
-            raise ValueError(f"Unsupported network architecture: {architecture}")
+        trt_path = f"{architecture}.trt"
+        trt_path = Path(Path(__file__).parent, trt_path)
 
-        self.embedder.to(self.device)
-        self.embedder.eval()
+        if not trt_path.exists():
+            if architecture == "iresnet34":
+                self.embedder = nets.iresnet34(pretrained=True)
+            elif architecture == "iresnet50":
+                self.embedder = nets.iresnet50(pretrained=True)
+            elif architecture == "iresnet100":
+                self.embedder = nets.iresnet100(pretrained=True)
+            else:
+                raise ValueError(f"Unsupported network architecture: {architecture}")
+            self.embedder.eval()
+            self.embedder.to(self.device)
+            print(f"[INFO] Building {architecture} tensorrt")
+            x = torch.ones((1,3,112,112)).to(self.device)
+            self.embedder = torch2trt(self.embedder, [x], max_batch_size=32, fp16_mode=False)
+            torch.save(self.embedder.state_dict(), trt_path)
+        else:
+            print(f"[INFO] Loading {architecture} tensorrt")
+            self.embedder = TRTModule()
+            self.embedder.load_state_dict(torch.load(trt_path))
 
         mean = [0.5] * 3
         std = [0.5 * 256 / 255] * 3

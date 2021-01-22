@@ -20,10 +20,10 @@ bRunning = False
 
 batch_size = 1
 
-STREAM_SIZE = 5
-DETECT_SIZE = 5
-RECOGN_SIZE = 10
-IMSHOW_SIZE = 5
+STREAM_SIZE = 3
+DETECT_SIZE = 3
+RECOGN_SIZE = 5
+IMSHOW_SIZE = 3
 
 stream_queue = None    #[deviceId, rgb]
 detect_queue = None    #[deviceId, bboxs, landmarks, faceCropExpands, rgb]

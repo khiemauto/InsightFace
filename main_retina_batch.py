@@ -13,20 +13,20 @@ import os
 import sys
 from typing import Tuple
 
-from fastapi import params
+# from fastapi import params
 from face_recognition_sdk.utils.database import FaceRecognitionSystem
-import uvicorn
+# import uvicorn
 import socketserver
 import http.server
-from api.rest import FaceRecogAPI
+# from api.rest import FaceRecogAPI
 import share_param
 from core import support, pushserver
 import numpy as np
 import requests
 import json
-from core.tracking import Tracking
+# from core.tracking import Tracking
 
-test = Tracking()
+# test = Tracking()
 
 
 GET_FACE_INFO_URL = 'get_face_info'
@@ -50,6 +50,7 @@ def initiation() -> Tuple[dict, dict]:
         sys.stdout = open(os.devnull, 'w')
 
     cam_dicts = support.get_cameras()
+    # cam_dicts = dict(list(cam_dicts.items())[2:4]) 
     face_dicts = support.get_faces()
 
     return cam_dicts, face_dicts
@@ -209,6 +210,8 @@ def recogn_thread_fun():
             continue
 
         recogn_inputs = []
+        # while not share_param.detect_queue.empty():
+        #     recogn_inputs.append(share_param.detect_queue.get())
         for i in range(share_param.batch_size):
             recogn_inputs.append(share_param.detect_queue.get())
 
@@ -297,17 +300,17 @@ if __name__ == '__main__':
     # print(len(share_param.cam_infos))
     share_param.batch_size = len(share_param.cam_infos)
     share_param.stream_queue = queue.Queue(
-        maxsize=share_param.STREAM_SIZE*share_param.batch_size+3)
+        maxsize=share_param.STREAM_SIZE*share_param.batch_size+1)
     share_param.detect_queue = queue.Queue(
-        maxsize=share_param.DETECT_SIZE*share_param.batch_size+3)
+        maxsize=share_param.DETECT_SIZE*share_param.batch_size+1)
     share_param.recogn_queue = queue.Queue(
-        maxsize=share_param.RECOGN_SIZE*share_param.batch_size+3)
+        maxsize=share_param.RECOGN_SIZE*share_param.batch_size+1)
 
     share_param.push_detect_queue = queue.Queue(
-        maxsize=share_param.DETECT_SIZE*share_param.batch_size+3)
+        maxsize=share_param.DETECT_SIZE*share_param.batch_size+1)
 
     share_param.imshow_queue = queue.Queue(
-        maxsize=share_param.IMSHOW_SIZE*share_param.batch_size+3)
+        maxsize=share_param.IMSHOW_SIZE*share_param.batch_size+1)
 
     stream_threads = []
     for deviceID, camURL in share_param.cam_infos.items():

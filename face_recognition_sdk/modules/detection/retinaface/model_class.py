@@ -41,10 +41,7 @@ class RetinaFace(BaseFaceDetector):
         self.device = torch.device(self.config["device"])
         self.model = load_model(self.model, model_urls[backbone], True if self.config["device"] == "cpu" else False)
         self.model.eval()
-        self.model = self.model.to(self.device)
-
-        x = torch.ones((1,3,224,224)).to(self.device)
-        self.model = torch2trt(self.model, [x])
+        self.model.to(self.device)
 
         self.model_input_shape = None
         self.resize_scale = None

@@ -6,7 +6,6 @@ from torchvision import transforms
 from . import nets
 
 from ..base_embedder import BaseFaceEmbedder
-from torch2trt import torch2trt
 
 
 class InsightFaceEmbedder(BaseFaceEmbedder):
@@ -27,11 +26,8 @@ class InsightFaceEmbedder(BaseFaceEmbedder):
         else:
             raise ValueError(f"Unsupported network architecture: {architecture}")
 
-        self.embedder.to(self.device)
         self.embedder.eval()
-
-        x = torch.ones((1,3,112,112)).to(self.device)
-        self.embedder = torch2trt(self.embedder, [x])
+        self.embedder.to(self.device)
 
         mean = [0.5] * 3
         std = [0.5 * 256 / 255] * 3

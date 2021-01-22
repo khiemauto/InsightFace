@@ -24,8 +24,8 @@ class FaceRecognitionSDK:
 
         logger.info("Start SDK initialization.")
         self.detector = RetinaFace(config["detector"])
-        self.embedder = InsightFaceEmbedder(config["embedder"])
-        self.attr_classifier = AttributeClassifierV1(config["attributes"])
+        # self.embedder = InsightFaceEmbedder(config["embedder"])
+        # self.attr_classifier = AttributeClassifierV1(config["attributes"])
         self.database = FaissFaceStorage(config["database"])
         logger.info("Finish SDK initialization")
 

@@ -18,10 +18,10 @@
         "print": true,
         "face_reg_score": 0.7,
         "option_detection": 1,
-        "option_recogition": 1
+        "option_recogition": 2
     },
     "APISERVER": {
-        "is_server": true,
+        "is_server": false,
         "host": "192.168.1.111",
         "port": 8000,
         "add_recognition_queue": "/add_recognition_queue"

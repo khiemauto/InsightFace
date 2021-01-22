@@ -3,8 +3,6 @@ import numpy as np
 import yaml
 import cv2
 from typing import List
-import os
-from torch2trt import torch2trt, TRTModule
 
 from torch import Tensor
 from pathlib import Path
@@ -39,23 +37,10 @@ class RetinaFace(BaseFaceDetector):
 
         self.model_config = self.model_config[backbone]
         self.device = torch.device(self.config["device"])
-
-        trt_path = f"{backbone}.trt"
-        trt_path = Path(Path(__file__).parent, trt_path)
-        if not trt_path.exists():
-            self.model = ModelClass(self.model_config, phase="test")
-            self.model = load_model(self.model, model_urls[backbone], True if self.config["device"] == "cpu" else False)
-            self.model.eval()
-            self.model.to(self.device)
-            print(f"[INFO] Building {backbone} tensorrt")
-            x = torch.ones((1,3,224,224)).to(self.device)
-            self.model = torch2trt(self.model, [x], max_batch_size=32, fp16_mode=False)
-            torch.save(self.model.state_dict(), trt_path)
-        else:
-            print(f"[INFO] Loading {backbone} tensorrt")
-            self.model = TRTModule()
-            self.model.load_state_dict(torch.load(trt_path))
-
+        self.model = ModelClass(self.model_config, phase="test")
+        self.model = load_model(self.model, model_urls[backbone], True if self.config["device"] == "cpu" else False)
+        self.model.eval()
+        self.model.to(self.device)
         self.model_input_shape = None
         self.resize_scale = None
 

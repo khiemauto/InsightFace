@@ -24,18 +24,18 @@ from core import support, pushserver
 import numpy as np
 import requests
 import json
-from core.tracking import Tracking
+# from core.tracking import Tracking
 
-test = Tracking()
+# test = Tracking()
 
-ap = argparse.ArgumentParser()
-ap.add_argument("-fp", "--folders_path", default=None,
-                help="path to save folders with images")
-ap.add_argument("-dbp", "--db_folder_path", default="database",
-                help="path to save database")
-ap.add_argument("-rdb", "--reload_db", type=int, default=0,
-                help="reload database")
-args = vars(ap.parse_args())
+# ap = argparse.ArgumentParser()
+# ap.add_argument("-fp", "--folders_path", default=None,
+#                 help="path to save folders with images")
+# ap.add_argument("-dbp", "--db_folder_path", default="database",
+#                 help="path to save database")
+# ap.add_argument("-rdb", "--reload_db", type=int, default=0,
+#                 help="reload database")
+# args = vars(ap.parse_args())
 
 
 def initiation() -> Tuple[dict, dict]:
@@ -274,7 +274,7 @@ def imshow_thread_fun():
             cv2.waitKey(10)
 
 
-if __name__ == '__main__':
+def main(args):
     folders_path = args["folders_path"]
     db_folder_path = args["db_folder_path"]
 
@@ -343,3 +343,6 @@ if __name__ == '__main__':
     share_param.bRunning = False
     fileserver.shutdown()
     cv2.destroyAllWindows()
+
+# if __name__ == '__main__':
+#     main(args)

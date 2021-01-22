@@ -8,8 +8,8 @@ RUN apt-get update -y && apt-get upgrade -y
 # RUN pip3 install --upgrade pip
 RUN python -V
 RUN pip install --upgrade setuptools pip
-RUN pip install nvidia-pyindex
-RUN pip install --upgrade nvidia-tensorrt
+# RUN pip install nvidia-pyindex
+# RUN pip install --upgrade nvidia-tensorrt
 RUN nvcc -V
 RUN pip install torch==1.7.1+cu110 torchvision==0.8.2+cu110 torchaudio===0.7.2 -f https://download.pytorch.org/whl/torch_stable.html
 RUN pip install opencv-python

@@ -59,7 +59,7 @@ def stream_thread_fun(deviceID: int, camURL: str):
         print(f"[INFO] Camera opened {camURL}")
 
     FrameID = 1
-    timeStep = 1/15  # 10FPS
+    timeStep = 1/10  # 10FPS
     lastFrame = time.time()
     lastGood = time.time()
 
@@ -103,15 +103,15 @@ def detect_thread_fun():
         # print( 'line', inspect.getframeinfo(inspect.currentframe()).lineno)
         totalTime = time.time()
         time.sleep(0.001)
-        if share_param.stream_queue.qsize() < share_param.batch_size:
+
+        if share_param.stream_queue.empty():
             continue
 
         detect_inputs = []  # [[deviceId, rbg]]
         preTime = time.time()
 
-        for batchId in range(share_param.batch_size):
-            detect_input = share_param.stream_queue.get()
-            detect_inputs.append(detect_input)
+        while not share_param.stream_queue.empty() and len(detect_inputs)<share_param.batch_size:
+            detect_inputs.append(share_param.stream_queue.get())
 
         preTime = time.time()
         rgbs = []
@@ -187,7 +187,7 @@ def detect_thread_fun():
                     share_param.push_detect_queue.get()
                 share_param.push_detect_queue.put((deviceId, bbox_keeps, landmark_keeps, faceCropExpand_keeps, None))
 
-        print("Detect Time:", time.time() - totalTime)
+        # print("Detect Time:", time.time() - totalTime)
 
 def recogn_thread_fun():
     if share_param.devconfig["DEV"]["option_recogition"] != 1:
@@ -202,7 +202,7 @@ def recogn_thread_fun():
             continue
 
         recogn_inputs = []
-        while not share_param.detect_queue.empty() and len(recogn_inputs)<share_param.MAX_BATCH_SIZE:
+        while not share_param.detect_queue.empty() and len(recogn_inputs)<5*share_param.batch_size:
             recogn_inputs.append(share_param.detect_queue.get())
 
         faceInfos = []
@@ -223,7 +223,7 @@ def recogn_thread_fun():
         if len(faceAligns) == 0:
             continue
 
-        print("Align Time:", time.time() - preTime)
+        # print("Align Time:", time.time() - preTime)
         preTime = time.time()
         share_param.recog_lock.acquire()
         descriptors = share_param.system.sdk.get_descriptor_batch(faceAligns)
@@ -231,7 +231,7 @@ def recogn_thread_fun():
 
         del faceAligns
 
-        print("Description Time:", time.time() - preTime)
+        # print("Description Time:", time.time() - preTime)
         preTime = time.time()
         indicies = []
         distances = []
@@ -247,7 +247,7 @@ def recogn_thread_fun():
                 faceInfo.append(user_name)
                 faceInfo.append(distance[0])
 
-        print("Similar Time:", time.time() - preTime)
+        # print("Similar Time:", time.time() - preTime)
         preTime = time.time()
 
         for deviceId, bbox, landmark, faceCropExpand, user_name, score in faceInfos:
@@ -260,7 +260,7 @@ def recogn_thread_fun():
                 user_name = "unknown"
             pushserver.add_recogn_queue(user_name, deviceId, datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), faceCropExpand)
         
-        print("Push Time:", time.time() - preTime)
+        # print("Push Time:", time.time() - preTime)
         
         # print("Recogn Time:", time.time() - totalTime)
 
@@ -290,17 +290,17 @@ if __name__ == '__main__':
     # print(len(share_param.cam_infos))
     share_param.batch_size = len(share_param.cam_infos)
     share_param.stream_queue = queue.Queue(
-        maxsize=share_param.STREAM_SIZE*share_param.batch_size+3)
+        maxsize=share_param.STREAM_SIZE*share_param.batch_size+1)
     share_param.detect_queue = queue.Queue(
-        maxsize=share_param.DETECT_SIZE*share_param.batch_size+3)
+        maxsize=share_param.DETECT_SIZE*share_param.batch_size+1)
     share_param.recogn_queue = queue.Queue(
-        maxsize=share_param.RECOGN_SIZE*share_param.batch_size+3)
+        maxsize=share_param.RECOGN_SIZE*share_param.batch_size+1)
 
     share_param.push_detect_queue = queue.Queue(
-        maxsize=share_param.DETECT_SIZE*share_param.batch_size+3)
+        maxsize=share_param.DETECT_SIZE*share_param.batch_size+1)
 
     share_param.imshow_queue = queue.Queue(
-        maxsize=share_param.IMSHOW_SIZE*share_param.batch_size+3)
+        maxsize=share_param.IMSHOW_SIZE*share_param.batch_size+1)
 
     stream_threads = []
     for deviceID, camURL in share_param.cam_infos.items():

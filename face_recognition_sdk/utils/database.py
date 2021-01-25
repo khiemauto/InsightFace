@@ -1,4 +1,4 @@
-from build.lib.face_recognition_sdk.utils import io_utils
+from . import io_utils
 import pickle
 import os
 import numpy as np

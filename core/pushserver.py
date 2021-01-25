@@ -4,7 +4,7 @@ from core import support
 import time, datetime, os, sys, cv2, requests
 import json
 
-def add_recogn_queue(user_name: str, device_id: str, track_time: str , face_img: np.array):
+def add_recogn_queue(user_name: str, device_id: int, track_time: str , face_img: np.array):
     face_id = share_param.face_infos[user_name]["FaceId"] if user_name in share_param.face_infos else -1
 
     data = {'EventId': "1",

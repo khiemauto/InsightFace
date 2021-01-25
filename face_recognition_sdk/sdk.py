@@ -4,11 +4,11 @@ import logging
 from typing import List, Tuple
 from pathlib import Path
 
-from .modules.detection.retinaface import RetinaFace
-from .modules.recognition.insightface import InsightFaceEmbedder
-from .modules.face_attributes import AttributeClassifierV1
-from .modules.alignment import align_and_crop_face
-from .modules.database import FaissFaceStorage
+from .modules.detection.retinaface.model_class import RetinaFace
+from .modules.recognition.insightface.insightface import InsightFaceEmbedder
+from .modules.face_attributes.attr_classifier_v1.attr_classifier_v1 import AttributeClassifierV1
+from .modules.alignment.align_faces import align_and_crop_face
+from .modules.database.faiss.faiss_database import FaissFaceStorage
 from .utils.io_utils import read_yaml
 
 

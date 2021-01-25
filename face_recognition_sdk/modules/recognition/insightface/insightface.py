@@ -3,7 +3,7 @@ import numpy as np
 import torch
 from torchvision import transforms
 
-from . import nets
+from .nets import iresnet
 
 from ..base_embedder import BaseFaceEmbedder
 
@@ -18,11 +18,11 @@ class InsightFaceEmbedder(BaseFaceEmbedder):
         architecture = config["architecture"]
 
         if architecture == "iresnet34":
-            self.embedder = nets.iresnet34(pretrained=True)
+            self.embedder = iresnet.iresnet34(pretrained=True)
         elif architecture == "iresnet50":
-            self.embedder = nets.iresnet50(pretrained=True)
+            self.embedder = iresnet.iresnet50(pretrained=True)
         elif architecture == "iresnet100":
-            self.embedder = nets.iresnet100(pretrained=True)
+            self.embedder = iresnet.iresnet100(pretrained=True)
         else:
             raise ValueError(f"Unsupported network architecture: {architecture}")
 

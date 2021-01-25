@@ -19,12 +19,6 @@ from typing import Any
 from pydantic import BaseModel
 import numpy as np
 
-class DetectionItem(BaseModel):
-    deviceId: int
-    bboxs: List[List[float]]
-    landmarks: List[List[float]]
-    # faceCropExpandFiles: List[UploadFile]
-
 
 class FaceRecogAPI(FastAPI):
     def __init__(self, system: FaceRecognitionSystem, folders_path: str, db_folder_path: str, title: str = "FaceRecogAPI") -> None:
@@ -160,11 +154,6 @@ class FaceRecogAPI(FastAPI):
             descriptor = self.system.sdk.get_descriptor(image)
             share_param.recog_lock.release()
 
-            # data = []
-            # for bbox, landm in zip(bboxes, landmarks):
-            #     data.append({
-            #         "box": bbox.tolist(),
-            #         "landm": landm.tolist()})
             return JSONResponse(descriptor.tolist(), status_code=status.HTTP_200_OK)
 
         @self.post("/api/add_images_database")

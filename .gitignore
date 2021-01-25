@@ -1,4 +1,5 @@
 /backup
 /dataset
 /model
+/compile
 *.pyc

@@ -1,8 +1,8 @@
 ## Installation
 Clone and install dependencies for development
 ```
-git clone https://github.com/khiemauto/InsightFace.git
-pip3 install -r requirements.txt
+$ git clone https://github.com/khiemauto/InsightFace.git
+$ pip3 install -r requirements.txt
 ```
 
 ## Compile

@@ -1,6 +1,6 @@
 import glob
 import os
-from shutil import copyfile
+from shutil import copyfile, make_archive
 
 from numpy import save
 
@@ -28,5 +28,7 @@ def nuitka_compile():
         newpath = os.path.join("compile", cpfile)
         os.makedirs(os.path.dirname(newpath), exist_ok=True)
         copyfile(cpfile, newpath)
+    
+    make_archive("InsightFace", 'zip', "compile")
     
 nuitka_compile()

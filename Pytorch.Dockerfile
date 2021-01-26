@@ -30,3 +30,5 @@ COPY model/iresnet100-73e07ba7.pth /root/.cache/torch/hub/checkpoints/
 RUN DEBIAN_FRONTEND="noninteractive" apt-get -y install tzdata
 ENV TZ=Asia/Ho_Chi_Minh
 RUN echo $TZ > /etc/timezone
+
+ENV LD_LIBRARY_PATH /opt/conda/lib:$LD_LIBRARY_PATH

@@ -15,13 +15,14 @@ def nuitka_compile():
         cmd = f"python3 -m nuitka --module {name} --output-dir={savepath} --remove-output --no-pyi-file"
         os.system(cmd)
 
-    os.system("python3 -m nuitka main.py --output-dir=compile --remove-output --no-pyi-file")
+    # os.system("python3 -m nuitka main.py --output-dir=compile --remove-output --no-pyi-file --nofollow-import-to=_virtualenv")
 
     os.makedirs("compile/database")
     os.makedirs("compile/dataset/photos")
 
-    cpfiles = ["face_recognition_sdk/config/config.yaml", "compile/face_recognition_sdk/config/config.yaml",
-        "face_recognition_sdk/modules/detection/retinaface/config.yaml", "devconfig.json"]
+    cpfiles = ["main.py", "face_recognition_sdk/config/config.yaml", 
+        "face_recognition_sdk/modules/detection/retinaface/config.yaml", 
+        "devconfig.json", "run.sh"]
 
     for cpfile in cpfiles:
         newpath = os.path.join("compile", cpfile)

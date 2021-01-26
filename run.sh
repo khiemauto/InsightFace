@@ -1,2 +1,3 @@
 xhost +local:docker
-while true; do docker run --rm -it --gpus all --net=host --env="DISPLAY" --volume="$HOME/.Xauthority:/root/.Xauthority:rw" -v $(pwd):/home/admin/InsightFace -w /home/admin/InsightFace khiemauto92/facereg:v1.0 python main_retina_batch.py -rdb 0 -dbp database -fp dataset/photos && break; done
+docker run --rm -it --gpus all --net=host --env="DISPLAY" --volume="$HOME/.Xauthority:/root/.Xauthority:rw" -v $(pwd):/home/admin/InsightFace -w /home/admin/InsightFace khiemauto92/facereg:v1.0 python main.py -rdb 1 -dbp database -fp dataset/photos
+while true; do docker run --rm -it --gpus all --net=host --env="DISPLAY" --volume="$HOME/.Xauthority:/root/.Xauthority:rw" -v $(pwd):/home/admin/InsightFace -w /home/admin/InsightFace khiemauto92/facereg:v1.0 python main.py -rdb 0 -dbp database -fp dataset/photos && break; done

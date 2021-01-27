@@ -27,7 +27,7 @@ def create_url(option: str):
         return None
     ip = config['SERVER']['ip']
     port = config['SERVER']['port']
-    url = config['URL'][option]
+    url = config['SERVER'][option]
     if port:
         url = f"http://{ip}:{port}{url}"
     else:

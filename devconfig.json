@@ -1,15 +1,10 @@
 {
     "SERVER": {
+        "__comment": "web server",
         "ip": "192.168.1.240",
-        "port": 80
-    },
-    "URL": {
+        "port": 80,
         "get_list_device": "/vms-api/api/device/get-list-device",
-        "get_face_image": "/vms-server/image/get-face-image",
-        "download_image": "/vms-server/image/download/",
         "face_upload": "/vms-api/api/face/event",
-        "get_list_image_by_face_id": "/vms-server/image/get-imageid-by-faceid",
-        "get_name_by_face_id": "/vms-api/api/face/get-face-by-id",
         "get_face_info": "/vms-api/api/face/get"
     },
     "DEV": {
@@ -27,6 +22,7 @@
         "add_recognition_queue": "/add_recognition_queue"
     },
     "FILESERVER": {
+        "__comment": "engine web api",
         "enable": true,
         "host": "0.0.0.0",
         "port": 8001

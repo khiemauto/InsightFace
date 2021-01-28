@@ -11,6 +11,9 @@ from .modules.alignment.align_faces import align_and_crop_face
 from .modules.database.faiss.faiss_database import FaissFaceStorage
 from .utils.io_utils import read_yaml
 
+from .modules.tracking.utils.parser import get_config
+from .modules.tracking.deep_sort import DeepSort
+
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +30,17 @@ class FaceRecognitionSDK:
         self.embedder = InsightFaceEmbedder(config["embedder"])
         # self.attr_classifier = AttributeClassifierV1(config["attributes"])
         self.database = FaissFaceStorage(config["database"])
+
+        # cfg = get_config("face_recognition_sdk/modules/tracking/configs/deep_sort.yaml")
+
+        # print(cfg)
+
+        # self.deepsort = DeepSort(cfg.DEEPSORT.REID_CKPT,
+        #                 max_dist=cfg.DEEPSORT.MAX_DIST, min_confidence=cfg.DEEPSORT.MIN_CONFIDENCE,
+        #                 nms_max_overlap=cfg.DEEPSORT.NMS_MAX_OVERLAP, max_iou_distance=cfg.DEEPSORT.MAX_IOU_DISTANCE,
+        #                 max_age=cfg.DEEPSORT.MAX_AGE, n_init=cfg.DEEPSORT.N_INIT, nn_budget=cfg.DEEPSORT.NN_BUDGET,
+        #                 use_cuda=True)
+
         logger.info("Finish SDK initialization")
 
     def load_database(self, path: str) -> None:

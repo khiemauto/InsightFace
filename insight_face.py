@@ -12,6 +12,7 @@ import threading
 import os
 import sys
 from typing import Tuple
+import torch
 
 from fastapi import params
 from face_recognition_sdk.utils.database import FaceRecognitionSystem
@@ -24,7 +25,7 @@ from core import support, pushserver
 import numpy as np
 import requests
 import json
-# from core.tracking import Tracking
+from core.tracking import Tracking
 
 # test = Tracking()
 
@@ -99,6 +100,8 @@ def detect_thread_fun():
     if share_param.devconfig["DEV"]["option_detection"] != 1:
         return
     totalTime = time.time()
+
+    trackers = Tracking()
     while share_param.bRunning: 
         # print( 'line', inspect.getframeinfo(inspect.currentframe()).lineno)
         totalTime = time.time()
@@ -119,20 +122,38 @@ def detect_thread_fun():
             rgbs.append(rgb)
 
         share_param.detect_lock.acquire()
+        preTime = time.time()
         bboxes_batch, landmarks_batch = share_param.system.sdk.detect_faces_batch(rgbs)
+        print("Detect Time:", time.time() - totalTime)
         share_param.detect_lock.release()
 
         del rgbs
 
         for bboxes, landmarks, (deviceId, rgb) in zip(bboxes_batch, landmarks_batch, detect_inputs):
+            #Tracking
+            bbox_xywh = []
+            confs = []
+
+            #Keep for recogn
             bbox_keeps = []
             landmark_keeps = []
             faceCropExpand_keeps = []
 
+            #Draw tracking
             draw_bboxs = []
             draw_landmarks = []
 
             for bbox, landmark in zip(bboxes, landmarks):
+
+                x_l, y_t, x_r, y_b, conf = bbox 
+                x_c = x_l + (x_r-x_l)/2
+                y_c = y_t + (y_b-y_t)/2
+                bbox_w = x_r - x_l
+                bbox_h = y_b - y_t
+                obj = [x_c, y_c, bbox_w, bbox_h]
+                bbox_xywh.append(obj)
+                confs.append([conf])
+
                 # Skip blur face
                 imgcrop = rgb[int(bbox[1]):int(bbox[3]),
                               int(bbox[0]):int(bbox[2])]
@@ -165,10 +186,27 @@ def detect_thread_fun():
 
                 bbox_keeps.append(np.asarray(relbox))
                 landmark_keeps.append(np.asarray(rellandmark))
-                
+            
+            #Tracking
+            preTime = time.time()
+            if len(bbox_xywh)>0 and len(confs)>0:
+                print("bbox_xywh", bbox_xywh)
+                print("confs", confs)
+                xywhs = torch.Tensor(bbox_xywh)
+                confss = torch.Tensor(confs)
+                outputs = share_param.system.sdk.deepsort.update(xywhs, confss, rgb)
+                print("outputs", outputs)
+                print("Tracking Time:", time.time() - preTime)
+
+                for output in outputs:
+                    cv2.rectangle(rgb, (int(output[0]), int(output[1])), (int(output[2]), int(output[3])), (0, 255, 0), 2)
+                    cv2.putText(rgb, str(output[4]), (int(output[0]), int(output[1])), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255), 2)
+            else:
+                share_param.system.sdk.deepsort.increment_ages()
+
             #Draw
-            for draw_bbox in draw_bboxs:
-                cv2.rectangle(rgb, (int(draw_bbox[0]), int(draw_bbox[1])), (int(draw_bbox[2]), int(draw_bbox[3])), (0, 255, 0), 2)
+            # for draw_bbox in draw_bboxs:
+                # cv2.rectangle(rgb, (int(draw_bbox[0]), int(draw_bbox[1])), (int(draw_bbox[2]), int(draw_bbox[3])), (0, 255, 0), 2)
 
             while share_param.imshow_queue.qsize() > share_param.IMSHOW_SIZE*share_param.batch_size:
                     share_param.imshow_queue.get()
@@ -304,9 +342,9 @@ def main(args):
 
     stream_threads = []
     for deviceID, camURL in share_param.cam_infos.items():
-        # if deviceID == 41:
-        stream_threads.append(threading.Thread(
-            target=stream_thread_fun, daemon=True, args=(deviceID, camURL)))
+        if deviceID == 41:
+            stream_threads.append(threading.Thread(
+                target=stream_thread_fun, daemon=True, args=(deviceID, camURL)))
 
     detect_thread = threading.Thread(
         target=detect_thread_fun, daemon=True, args=())

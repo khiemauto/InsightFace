@@ -5,9 +5,9 @@ from torchvision.models.utils import load_state_dict_from_url
 __all__ = ["iresnet34", "iresnet50", "iresnet100"]
 
 model_urls = {
-    "iresnet34": "https://sota.nizhib.ai/insightface/iresnet34-5b0d0e90.pth",
-    "iresnet50": "https://sota.nizhib.ai/insightface/iresnet50-7f187506.pth",
-    "iresnet100": "https://sota.nizhib.ai/insightface/iresnet100-73e07ba7.pth",
+    "iresnet34": "https://bitbucket.org/matthan2020/data/raw/e4f8a094da3a7c71e7c9a1a03ef1165e753f77dc/InsightFace/iresnet34-5b0d0e90.pth",
+    "iresnet50": "https://bitbucket.org/matthan2020/data/raw/e4f8a094da3a7c71e7c9a1a03ef1165e753f77dc/InsightFace/iresnet50-7f187506.pth",
+    "iresnet100": "https://bitbucket.org/matthan2020/data/raw/e4f8a094da3a7c71e7c9a1a03ef1165e753f77dc/InsightFace/iresnet100-73e07ba7.pth",
 }
 
 

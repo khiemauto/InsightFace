@@ -5,7 +5,7 @@ from typing import List, Dict, Tuple
 class Tracking():
     def __init__(self) -> None:
         super().__init__()
-        self.trackers = {}  #trackid: [Tracker, loss]
+        self.trackers = {}  #trackid: [Tracker]
         self.threshiou = 0.5
         self.maxid = 1
     
@@ -17,11 +17,11 @@ class Tracking():
         trackboxs = {}
 
         for trackid in list(self.trackers):
-            (success, trackbox) = self.trackers[trackid][0].update(frame)
-            if success:
-                trackboxs[trackid] = trackbox
-            else:
-                del self.trackers[trackid]
+            (success, trackbox) = self.trackers[trackid].update(frame)
+            # if success:
+            trackboxs[trackid] = trackbox
+            # else:
+            #     del self.trackers[trackid]
 
         track_detect_iou = {}   #(trackidmaxiou: detectboxid, detectbox, maxiou)
         detect_track_iou = {}   #(detectboxid: trackidmaxiou)
@@ -54,8 +54,8 @@ class Tracking():
         #Clean tracker
         for trackid in list(self.trackers):
             if trackid in track_detect_iou:
-                self.trackers[trackid] = [cv2.TrackerMOSSE_create(), 0]
-                # self.trackers[trackid][0].init(frame, track_detect_iou[trackid][1])
+                self.trackers[trackid] = cv2.TrackerMOSSE_create()
+                self.trackers[trackid].init(frame, track_detect_iou[trackid][1])
                 # self.trackers[trackid][1] = 0
                 trackid_bboxes.append((trackid, track_detect_iou[trackid][1]))
             else:
@@ -65,11 +65,11 @@ class Tracking():
         for detectboxid, detectbox in enumerate(detectboxs):
             if detectboxid not in detect_track_iou:
                 self.maxid += 1
-                self.trackers[self.maxid] = [cv2.TrackerMOSSE_create(), 0]
-                self.trackers[self.maxid][0].init(frame, detectbox)
+                self.trackers[self.maxid] = cv2.TrackerMOSSE_create()
+                self.trackers[self.maxid].init(frame, detectbox)
                 trackid_bboxes.append((self.maxid, detectbox))
 
-        print(len(trackid_bboxes))
+        # print(len(trackid_bboxes))
         return trackid_bboxes
 
     def release(self):
@@ -78,11 +78,11 @@ class Tracking():
     def update(self, frame):
         ret = []
         for trackid in list(self.trackers):
-            (success, boxes) = self.trackers[trackid][0].update(frame)
-            if success:
-                ret.append((trackid, boxes))
-            else:
-                del self.trackers[trackid]
+            (success, boxes) = self.trackers[trackid].update(frame)
+            # if success:
+            ret.append((trackid, boxes))
+            # else:
+                # del self.trackers[trackid]
         return ret
         
     def bb_intersection_over_union(self, boxA, boxB):

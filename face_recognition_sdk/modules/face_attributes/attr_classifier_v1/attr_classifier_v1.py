@@ -10,8 +10,8 @@ from face_recognition_sdk.utils.load_utils import get_file_from_url
 
 
 model_urls = {
-    "res18": "https://face-demo.indatalabs.com/weights/attr_resnet18_jit_best.pt",
-    "mbnet2": "https://face-demo.indatalabs.com/weights/attr_mbnet2_jit_best.pt",
+    "res18": "https://bitbucket.org/matthan2020/data/raw/e4f8a094da3a7c71e7c9a1a03ef1165e753f77dc/InsightFace/attr_resnet18_jit_best.pt",
+    "mbnet2": "https://bitbucket.org/matthan2020/data/raw/e4f8a094da3a7c71e7c9a1a03ef1165e753f77dc/InsightFace/attr_mbnet2_jit_best.pt",
 }
 
 

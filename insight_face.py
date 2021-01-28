@@ -102,7 +102,9 @@ def detect_thread_fun():
         return
     totalTime = time.time()
 
-    trackers = Tracking()
+    trackers = {}
+    # trackers = Tracking()
+
     while share_param.bRunning: 
         # print( 'line', inspect.getframeinfo(inspect.currentframe()).lineno)
         totalTime = time.time()
@@ -119,18 +121,24 @@ def detect_thread_fun():
 
         detect_inputs = []
 
+        preTime= time.time()
         for id, (deviceId, rgb, FrameID) in enumerate(raw_detect_inputs):
+
+            if deviceId not in trackers:
+                trackers[deviceId] = Tracking()
+
             if FrameID%5 != 0:
                 #Track only
-                preTime= time.time()
-                trackinfos = trackers.update(rgb)
-                # print("TrackTime:", time.time() - preTime)
+                
+                trackinfos = trackers[deviceId].update(rgb)
+                
                 for trackid, boxes in trackinfos:
                     cv2.rectangle(rgb, (int(boxes[0]), int(boxes[1])), (int(boxes[0]+boxes[2]), int(boxes[1]+boxes[3])), (0, 255, 0), 2)
                     cv2.putText(rgb, str(trackid), (int(boxes[0]), int(boxes[1])), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255), 2)
                 share_param.imshow_queue.put((str(deviceId), rgb))
             else:
                 detect_inputs.append(raw_detect_inputs[id])
+        print("TrackTime:", time.time() - preTime)
         
         raw_detect_inputs.clear()
         del raw_detect_inputs
@@ -208,7 +216,7 @@ def detect_thread_fun():
             
             #Tracking
             preTime = time.time()
-            trackinfos = trackers.newsession(rgb , track_boxes)
+            trackinfos = trackers[deviceId].newsession(rgb , track_boxes)
             #Draw
             for trackid, boxes in trackinfos:
                 cv2.rectangle(rgb, (int(boxes[0]), int(boxes[1])), (int(boxes[0]+boxes[2]), int(boxes[1]+boxes[3])), (0, 255, 0), 2)
@@ -350,9 +358,9 @@ def main(args):
 
     stream_threads = []
     for deviceID, camURL in share_param.cam_infos.items():
-        if deviceID == 41:
-            stream_threads.append(threading.Thread(
-                target=stream_thread_fun, daemon=True, args=(deviceID, camURL)))
+        # if deviceID == 41:
+        stream_threads.append(threading.Thread(
+            target=stream_thread_fun, daemon=True, args=(deviceID, camURL)))
 
     detect_thread = threading.Thread(
         target=detect_thread_fun, daemon=True, args=())

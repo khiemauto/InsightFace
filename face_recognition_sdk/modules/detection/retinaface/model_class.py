@@ -15,10 +15,9 @@ from .dependencies.utils import decode, decode_landm, py_cpu_nms
 from .dependencies.prior_box import PriorBox
 
 model_urls = {
-    "res50": "https://face-demo.indatalabs.com/weights/Resnet50_Final.pth",
-    "mnet1": "https://face-demo.indatalabs.com/weights/mobilenet0.25_Final.pth",
+    "res50": "https://bitbucket.org/matthan2020/data/raw/e4f8a094da3a7c71e7c9a1a03ef1165e753f77dc/InsightFace/Resnet50_Final.pth",
+    "mnet1": "https://bitbucket.org/matthan2020/data/raw/e4f8a094da3a7c71e7c9a1a03ef1165e753f77dc/InsightFace/mobilenet0.25_Final.pth",
 }
-
 
 class RetinaFace(BaseFaceDetector):
     def __init__(self, config: dict):

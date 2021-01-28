@@ -7,7 +7,7 @@ import logging
 from urllib.parse import urlparse  # noqa: F401
 
 
-from torch.hub import _download_url_to_file
+from torch.hub import download_url_to_file
 
 # from torch/hub.py
 
@@ -58,7 +58,7 @@ def get_file_from_url(url, model_dir=None, progress=True, unzip=True):
     cached_file = os.path.join(model_dir, filename)
     if not os.path.exists(cached_file):
         logger.info(f"Downloading: {url} to {cached_file}")
-        _download_url_to_file(url, cached_file, None, progress=progress)
+        download_url_to_file(url, cached_file, None, progress=progress)
 
     # Note: extractall() defaults to overwrite file if exists. No need to clean up beforehand.
     #       We deliberately don't handle tarfile here since our legacy serialization format was in tar.

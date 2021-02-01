@@ -74,3 +74,33 @@ def custom_imshow(title: str, image: np.ndarray):
     if share_param.devconfig["DEV"]["imshow"]:
         cv2.imshow(title, image)
         cv2.waitKey(1)
+
+def add_stream_queue(data):
+    while share_param.stream_queue.qsize() > share_param.STREAM_SIZE*share_param.batch_size:
+            share_param.stream_queue.get()
+    share_param.stream_queue.put(data)
+
+def add_detect_queue(data):
+    while share_param.detect_queue.qsize() > share_param.DETECT_SIZE*share_param.batch_size:
+        share_param.detect_queue.get()
+    share_param.detect_queue.put(data)
+
+def add_push_detect_queue(data):
+    while share_param.push_detect_queue.qsize() > share_param.DETECT_SIZE*share_param.batch_size:
+        share_param.push_detect_queue.get()
+    share_param.push_detect_queue.put(data)
+
+def get_system_status() -> json:
+    ret = {}
+    ret["running"] = share_param.bRunning
+    camera_status = {}
+    for deviceID in share_param.stream_threads:
+        camera_status[deviceID] = share_param.stream_threads[deviceID].is_alive()
+    
+    ret["camera"] = camera_status
+    ret["detect"] = share_param.detect_thread.is_alive()
+    ret["recogn"] = share_param.recogn_thread.is_alive()
+    ret["pushs_server"] = share_param.pushserver_thread.is_alive()
+    ret["file_sever"] = share_param.file_thread.is_alive()
+
+    return ret

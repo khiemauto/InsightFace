@@ -28,10 +28,15 @@ IMSHOW_SIZE = 3
 stream_queue = None    #[deviceId, rgb]
 detect_queue = None    #[deviceId, bboxs, landmarks, faceCropExpands, rgb]
 recogn_queue = None    #{'EventId','UserName','DeviceId,'FaceId','RecordTime','FaceImg'}
-
 push_detect_queue = None    #[deviceId, bboxs, landmarks, faceCropExpands, rgb]
-
 imshow_queue = None    #[title, image]
+
+stream_threads = {}
+detect_thread = None
+recogn_thread = None
+pushserver_thread = None
+imshow_thread = None
+file_thread = None
 
 GET_FACE_INFO_URL = 'get_face_info'
 GET_FACE_INFO_FILE = 'face_info.json'

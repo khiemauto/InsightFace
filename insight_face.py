@@ -55,7 +55,6 @@ def stream_thread_fun(deviceID: int, camURL: str):
 
     if not cap or not cap.isOpened():
         print(f"[ERROR] Camera not open {camURL}")
-    
     else:
         print(f"[INFO] Camera opened {camURL}")
 
@@ -65,12 +64,8 @@ def stream_thread_fun(deviceID: int, camURL: str):
     lastGood = time.time()
 
     while True:
-        if not share_param.bRunning:
-            time.sleep(1)
-            continue
-
         time.sleep(0.01)
-        if time.time() - lastGood > 300:
+        if time.time()-lastGood>300:
             print("[INFO] Restart cam:", camURL)
             cap.open(camURL)
             lastGood = time.time()
@@ -78,24 +73,25 @@ def stream_thread_fun(deviceID: int, camURL: str):
         if cap is None or not cap.isOpened():
             continue
 
-        if time.time() - lastFrame > timeStep:
-            lastFrame = time.time()
-            (grabbed, frame) = cap.read()
-            if not grabbed or frame is None or frame.size == 0:
-                continue
-        else:
-            cap.grab()
+        if not share_param.bRunning or time.time()-lastFrame<timeStep:
+            grabbed = cap.grab()
+            if grabbed: lastGood = time.time()
             continue
 
-        lastGood = time.time()
+        if time.time() - lastFrame > timeStep:
+            lastFrame = time.time()
+            grabbed, frame = cap.read()
+            if grabbed: lastGood = time.time()
+            if not grabbed or frame is None or frame.size==0:
+                continue
+
         xstart = (frame.shape[1] - frame.shape[0])//2
         frame = frame[:, xstart: xstart + frame.shape[0]]
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        while share_param.stream_queue.qsize() > share_param.STREAM_SIZE*share_param.batch_size:
-            share_param.stream_queue.get()
-        
+
+        data = (deviceId, frame, FrameID)
+        support.add_stream_queue(data)
         FrameID += 1
-        share_param.stream_queue.put((deviceId, frame, FrameID))
 
     if cap:
         cap.release()
@@ -239,14 +235,12 @@ def detect_thread_fun():
                 continue
             
             if share_param.devconfig["DEV"]["option_recogition"] == share_param.RECOGN_LOCAL:
-                while share_param.detect_queue.qsize() > share_param.DETECT_SIZE*share_param.batch_size:
-                    share_param.detect_queue.get()
-                share_param.detect_queue.put((deviceId, bbox_keeps, landmark_keeps, faceCropExpand_keeps, None))
+                data = (deviceId, bbox_keeps, landmark_keeps, faceCropExpand_keeps, None)
+                support.add_detect_queue(data)
             
             elif share_param.devconfig["DEV"]["option_recogition"] == share_param.RECOGN_CLOUD:
-                while share_param.push_detect_queue.qsize() > share_param.DETECT_SIZE*share_param.batch_size:
-                    share_param.push_detect_queue.get()
-                share_param.push_detect_queue.put((deviceId, bbox_keeps, landmark_keeps, faceCropExpand_keeps, None))
+                data = (deviceId, bbox_keeps, landmark_keeps, faceCropExpand_keeps, None)
+                support.add_push_detect_queue(data)
 
         # print("Detect Time:", time.time() - totalTime)
 
@@ -369,36 +363,31 @@ def main(args):
     share_param.imshow_queue = queue.Queue(
         maxsize=share_param.IMSHOW_SIZE*share_param.batch_size+1)
 
-    stream_threads = []
     for deviceID, camURL in share_param.cam_infos.items():
-        # if deviceID == 41:
-        stream_threads.append(threading.Thread(
-            target=stream_thread_fun, daemon=True, args=(deviceID, camURL)))
+        share_param.stream_threads[deviceID] = threading.Thread(target=stream_thread_fun, daemon=True, args=(deviceID, camURL))
 
-    detect_thread = threading.Thread(
+    share_param.detect_thread = threading.Thread(
         target=detect_thread_fun, daemon=True, args=())
-    recogn_thread = threading.Thread(
+    share_param.recogn_thread = threading.Thread(
         target=recogn_thread_fun, daemon=True, args=())
-    pushserver_thread = threading.Thread(
+    share_param.pushserver_thread = threading.Thread(
         target=pushserver.pushserver_thread_fun, daemon=True, args=())
 
-    imshow_thread = threading.Thread(
+    share_param.imshow_thread = threading.Thread(
         target=imshow_thread_fun, daemon=True, args=())
 
     fileserver = socketserver.TCPServer(
         (share_param.devconfig["FILESERVER"]["host"], share_param.devconfig["FILESERVER"]["port"]), http.server.SimpleHTTPRequestHandler)
-    file_thread = threading.Thread(
+    share_param.file_thread = threading.Thread(
         target=fileserver.serve_forever, daemon=True, args=())
 
-    share_param.bRunning = True
-
-    file_thread.start()
-    for stream_thread in stream_threads:
-        stream_thread.start()
-    detect_thread.start()
-    recogn_thread.start()
-    pushserver_thread.start()
-    imshow_thread.start()
+    share_param.file_thread.start()
+    for deviceID in share_param.stream_threads:
+        share_param.stream_threads[deviceID].start()
+    share_param.detect_thread.start()
+    share_param.recogn_thread.start()
+    share_param.pushserver_thread.start()
+    share_param.imshow_thread.start()
 
     if share_param.devconfig["APISERVER"]["is_server"]:
         share_param.app = FaceRecogAPI(
@@ -406,10 +395,6 @@ def main(args):
         uvicorn.run(share_param.app, host=share_param.devconfig["APISERVER"]
                     ["host"], port=share_param.devconfig["APISERVER"]["port"])
     else:
-        detect_thread.join()
-    share_param.bRunning = False
+        share_param.detect_thread.join()
     fileserver.shutdown()
     cv2.destroyAllWindows()
-
-# if __name__ == '__main__':
-#     main(args)

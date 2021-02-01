@@ -54,7 +54,7 @@ class Tracking():
         #Clean tracker
         for trackid in list(self.trackers):
             if trackid in track_detect_iou:
-                self.trackers[trackid] = cv2.TrackerMOSSE_create()
+                self.trackers[trackid] = cv2.legacy.TrackerMOSSE_create()
                 self.trackers[trackid].init(frame, track_detect_iou[trackid][1])
                 # self.trackers[trackid][1] = 0
                 trackid_bboxes.append((trackid, track_detect_iou[trackid][1]))
@@ -65,7 +65,7 @@ class Tracking():
         for detectboxid, detectbox in enumerate(detectboxs):
             if detectboxid not in detect_track_iou:
                 self.maxid += 1
-                self.trackers[self.maxid] = cv2.TrackerMOSSE_create()
+                self.trackers[self.maxid] = cv2.legacy.TrackerMOSSE_create()
                 self.trackers[self.maxid].init(frame, detectbox)
                 trackid_bboxes.append((self.maxid, detectbox))
 

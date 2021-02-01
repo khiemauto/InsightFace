@@ -293,3 +293,19 @@ class FaceRecogAPI(FastAPI):
                 face_dicts[face_data["StaffCode"]] = face_data
             share_param.face_infos = face_dicts
             return PlainTextResponse("[OK] success get info from web server", status_code=status.HTTP_200_OK)
+
+        @self.get("/start")
+        async def start():
+            """
+            start server
+            """
+            share_param.bRunning = True
+            return PlainTextResponse("[OK] start server", status_code=status.HTTP_200_OK)
+
+        @self.get("/stop")
+        async def stop():
+            """
+            stop server
+            """
+            share_param.bRunning = False
+            return PlainTextResponse("[OK] stop server", status_code=status.HTTP_200_OK)

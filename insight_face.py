@@ -64,7 +64,11 @@ def stream_thread_fun(deviceID: int, camURL: str):
     lastFrame = time.time()
     lastGood = time.time()
 
-    while share_param.bRunning:
+    while True:
+        if not share_param.bRunning:
+            time.sleep(1)
+            continue
+
         time.sleep(0.01)
         if time.time() - lastGood > 300:
             print("[INFO] Restart cam:", camURL)
@@ -105,7 +109,10 @@ def detect_thread_fun():
     trackers = {}
     # trackers = Tracking()
 
-    while share_param.bRunning: 
+    while True: 
+        if not share_param.bRunning:
+            time.sleep(1)
+            continue
         # print( 'line', inspect.getframeinfo(inspect.currentframe()).lineno)
         totalTime = time.time()
         time.sleep(0.001)
@@ -138,7 +145,7 @@ def detect_thread_fun():
                 share_param.imshow_queue.put((str(deviceId), rgb))
             else:
                 detect_inputs.append(raw_detect_inputs[id])
-        print("TrackTime:", time.time() - preTime)
+        # print("TrackTime:", time.time() - preTime)
         
         raw_detect_inputs.clear()
         del raw_detect_inputs
@@ -248,7 +255,10 @@ def recogn_thread_fun():
         return
     
     totalTime = time.time()
-    while share_param.bRunning:
+    while True:
+        if not share_param.bRunning:
+            time.sleep(1)
+            continue
         totalTime = time.time()
         time.sleep(0.001)
         # print("Recogn Time:", time.time() - totalTime)
@@ -316,11 +326,14 @@ def recogn_thread_fun():
         
         # print("Push Time:", time.time() - preTime)
         
-        # print("Recogn Time:", time.time() - totalTime)
+        print("Recogn Time:", time.time() - totalTime)
 
 def imshow_thread_fun():        
-    while share_param.bRunning:
-        time.sleep(0.01)
+    while True:
+        if not share_param.bRunning:
+            time.sleep(1)
+        else:
+            time.sleep(0.01)
         while not share_param.imshow_queue.empty():
             title, image = share_param.imshow_queue.get()
             if share_param.devconfig["DEV"]["imshow"]:

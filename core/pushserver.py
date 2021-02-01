@@ -36,8 +36,11 @@ def pushserver_recogn_info_fun():
     url = support.create_url("face_upload")
     print("Full", url)
     lastTimeFaceID = {}
-    while share_param.bRunning:
-        time.sleep(0.001)
+    while True:
+        if not share_param.bRunning:
+            time.sleep(1)
+        else:
+            time.sleep(0.001)
         
         if share_param.recogn_queue.empty():
             continue
@@ -98,8 +101,12 @@ def pushserver_recogn_info_fun():
         # print("post time: {}".format(time.time()-preTime))
 
 def pushserver_detect_info_fun():
-    while share_param.bRunning:
-        time.sleep(0.001)
+    while True:
+        if not share_param.bRunning:
+            time.sleep(1)
+        else:
+            time.sleep(0.001)
+            
         if share_param.push_detect_queue.empty():
             continue
 

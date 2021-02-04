@@ -2,7 +2,7 @@ import json
 import requests
 import cv2
 import numpy as np
-import share_param
+from core import share_param
 
 def get_blur_var(area: float) -> float:
     return share_param.qi/((1.0+share_param.b*share_param.di*area)**(1.0/max(share_param.b, 1.e-50)))

@@ -11,9 +11,8 @@ from face_recognition_sdk.utils import io_utils
 from fastapi import FastAPI, File, UploadFile, status, Query
 from fastapi.responses import HTMLResponse, PlainTextResponse, JSONResponse, StreamingResponse
 
-import share_param
 import cv2
-from core import support, pushserver
+from core import support, pushserver, share_param
 import datetime
 from typing import Any
 from pydantic import BaseModel

@@ -20,8 +20,7 @@ import uvicorn
 import socketserver
 import http.server
 from api.rest import FaceRecogAPI
-import share_param
-from core import support, pushserver
+from core import support, pushserver, share_param
 import numpy as np
 import requests
 import json

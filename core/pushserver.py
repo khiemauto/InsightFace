@@ -1,6 +1,5 @@
-import share_param
 import numpy as np
-from core import support
+from core import support, share_param
 import time, datetime, os, sys, cv2, requests
 import json
 

@@ -1,4 +1,4 @@
-import insight_face
+from core import insight_face
 import argparse
 
 ap = argparse.ArgumentParser()

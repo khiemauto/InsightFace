@@ -2,13 +2,10 @@ import glob
 import os
 from shutil import copyfile, make_archive
 
-from numpy import save
-
 def nuitka_compile():
     pyfiles = glob.glob("face_recognition_sdk/**/*.py", recursive=True)
     pyfiles.extend(glob.glob("api/**/*.py", recursive=True))
     pyfiles.extend(glob.glob("core/**/*.py", recursive=True))
-    pyfiles.extend(["insight_face.py", "share_param.py"])
 
     for name in pyfiles:
         savepath = os.path.join("compile", os.path.dirname(name))

@@ -7,9 +7,9 @@ from pathlib import Path
 
 from pygame import mixer
 
-from face_recognition_sdk.utils.database import FaceRecognitionSystem
-from face_recognition_sdk.utils.io_utils import read_image, save_image
-from face_recognition_sdk.utils.draw_utils import draw_boxes, draw_landmarks
+from sdk.utils.database import FaceRecognitionSystem
+from sdk.utils.io_utils import read_image, save_image
+from sdk.utils.draw_utils import draw_boxes, draw_landmarks
 
 from gtts import gTTS
 

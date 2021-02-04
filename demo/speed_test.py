@@ -5,14 +5,14 @@ import numpy as np
 
 from pathlib import Path
 
-from face_recognition_sdk import FaceRecognitionSDK
-from face_recognition_sdk.utils.io_utils import read_yaml, read_image
+from sdk import FaceRecognitionSDK
+from sdk.utils.io_utils import read_yaml, read_image
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--path", "-p", help="path to image", type=str)
-    parser.add_argument("--config", help="path to sdk config", type=str, default="face_recognition_sdk/config/config.yaml")
+    parser.add_argument("--config", help="path to sdk config", type=str, default="sdk/config/config.yaml")
     args = parser.parse_args()
 
     config = read_yaml(args.config) if args.config else None

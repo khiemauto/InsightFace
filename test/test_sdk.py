@@ -1,15 +1,15 @@
 import os
 import numpy as np
-from face_recognition_sdk import FaceRecognitionSDK
+from sdk import FaceRecognitionSDK
 
-from face_recognition_sdk.utils.io_utils import read_image, save_image, read_yaml
+from sdk.utils.io_utils import read_image, save_image, read_yaml
 
 
 class TestSDK:
     """Test functionality of face recognition SDK."""
 
     @classmethod
-    def setup_class(cls, config_path="face_recognition_sdk/config/config.yaml"):
+    def setup_class(cls, config_path="sdk/config/config.yaml"):
 
         config = read_yaml(config_path)
         cls.sdk = FaceRecognitionSDK(config)

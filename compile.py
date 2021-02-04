@@ -3,7 +3,7 @@ import os
 from shutil import copyfile, make_archive
 
 def nuitka_compile():
-    pyfiles = glob.glob("face_recognition_sdk/**/*.py", recursive=True)
+    pyfiles = glob.glob("sdk/**/*.py", recursive=True)
     pyfiles.extend(glob.glob("api/**/*.py", recursive=True))
     pyfiles.extend(glob.glob("core/**/*.py", recursive=True))
 
@@ -17,8 +17,9 @@ def nuitka_compile():
     os.makedirs("compile/database")
     os.makedirs("compile/dataset/photos")
 
-    cpfiles = ["main.py", "face_recognition_sdk/config/config.yaml", 
-        "face_recognition_sdk/modules/detection/retinaface/config.yaml", 
+    cpfiles = ["main.py", "sdk/config/config.yaml", 
+        "sdk/modules/detection/retinaface/config.yaml",
+        "sdk/modules/tracking/configs/deep_sort.json", 
         "devconfig.json", "run.sh"]
 
     for cpfile in cpfiles:

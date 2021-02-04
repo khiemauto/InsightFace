@@ -6,7 +6,7 @@ import json
 from albumentations.pytorch import ToTensorV2
 
 from ..base_attribute_classifier import BaseAttributeClassifier
-from face_recognition_sdk.utils.load_utils import get_file_from_url
+from sdk.utils.load_utils import get_file_from_url
 
 
 model_urls = {

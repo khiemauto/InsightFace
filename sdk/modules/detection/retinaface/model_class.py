@@ -10,7 +10,7 @@ from typing import Tuple
 
 from ..base_detector import BaseFaceDetector
 from .dependencies.retinaface import RetinaFace as ModelClass
-from face_recognition_sdk.utils.load_utils import load_model
+from sdk.utils.load_utils import load_model
 from .dependencies.utils import decode, decode_landm, py_cpu_nms
 from .dependencies.prior_box import PriorBox
 

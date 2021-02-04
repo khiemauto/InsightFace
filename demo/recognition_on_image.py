@@ -3,16 +3,16 @@ import cv2
 
 from pathlib import Path
 
-from face_recognition_sdk.utils.database import FaceRecognitionSystem
-from face_recognition_sdk.utils.io_utils import read_yaml, read_image, save_image
-from face_recognition_sdk.utils.draw_utils import draw_boxes, draw_landmarks
+from sdk.utils.database import FaceRecognitionSystem
+from sdk.utils.io_utils import read_yaml, read_image, save_image
+from sdk.utils.draw_utils import draw_boxes, draw_landmarks
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--path", "-p", help="path to image", type=str)
     parser.add_argument(
-        "--config", help="path to sdk config", type=str, default="face_recognition_sdk/config/config.yaml"
+        "--config", help="path to sdk config", type=str, default="sdk/config/config.yaml"
     )
     parser.add_argument("--result_path", "-r", help="path to save processed image", default="demo/results/")
     parser.add_argument(

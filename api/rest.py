@@ -5,8 +5,8 @@ from fastapi.param_functions import Body, Form
 
 from torch._C import device
 
-from face_recognition_sdk.utils.database import FaceRecognitionSystem
-from face_recognition_sdk.utils import io_utils
+from sdk.utils.database import FaceRecognitionSystem
+from sdk.utils import io_utils
 
 from fastapi import FastAPI, File, UploadFile, status, Query
 from fastapi.responses import HTMLResponse, PlainTextResponse, JSONResponse, StreamingResponse

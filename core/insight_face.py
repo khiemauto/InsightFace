@@ -15,7 +15,7 @@ from typing import Tuple
 import torch
 
 from fastapi import params
-from face_recognition_sdk.utils.database import FaceRecognitionSystem
+from sdk.utils.database import FaceRecognitionSystem
 import uvicorn
 import socketserver
 import http.server
@@ -24,7 +24,7 @@ from core import support, pushserver, share_param
 import numpy as np
 import requests
 import json
-from face_recognition_sdk.modules.tracking.deep_sort.deep_sort import DeepSort
+from sdk.modules.tracking.deep_sort.deep_sort import DeepSort
 
 
 def initiation() -> Tuple[dict, dict]:
@@ -89,7 +89,7 @@ def detect_thread_fun():
     totalTime = time.time()
 
     trackers = {}
-    with open("face_recognition_sdk/modules/tracking/configs/deep_sort.json", 'r') as json_file:
+    with open("sdk/modules/tracking/configs/deep_sort.json", 'r') as json_file:
         cfg = json.load(json_file)
     
     while True: 

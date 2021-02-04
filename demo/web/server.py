@@ -5,15 +5,15 @@ import json
 import numpy as np
 from PIL import Image
 
-from face_recognition_sdk.utils.database import FaceRecognitionSystem
-from face_recognition_sdk.utils.io_utils import read_yaml, read_image, save_image
+from sdk.utils.database import FaceRecognitionSystem
+from sdk.utils.io_utils import read_yaml, read_image, save_image
 
 import argparse
 
 app = Flask(__name__)
 app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
 
-sdk_config = read_yaml("face_recognition_sdk/config/config.yaml")
+sdk_config = read_yaml("sdk/config/config.yaml")
 
 system = FaceRecognitionSystem(sdk_config)
 

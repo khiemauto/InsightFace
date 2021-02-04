@@ -310,8 +310,8 @@ class FaceRecogAPI(FastAPI):
             share_param.bRunning = False
             return PlainTextResponse("[OK] stop server", status_code=status.HTTP_200_OK)
 
-        @self.get("/status")
-        async def stop():
+        @self.get("/system_status")
+        async def system_status():
             """
             stop server
             """

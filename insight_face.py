@@ -25,18 +25,7 @@ from core import support, pushserver
 import numpy as np
 import requests
 import json
-from core.tracking import Tracking
-
-# test = Tracking()
-
-# ap = argparse.ArgumentParser()
-# ap.add_argument("-fp", "--folders_path", default=None,
-#                 help="path to save folders with images")
-# ap.add_argument("-dbp", "--db_folder_path", default="database",
-#                 help="path to save database")
-# ap.add_argument("-rdb", "--reload_db", type=int, default=0,
-#                 help="reload database")
-# args = vars(ap.parse_args())
+from face_recognition_sdk.modules.tracking.deep_sort.deep_sort import DeepSort
 
 
 def initiation() -> Tuple[dict, dict]:
@@ -47,7 +36,6 @@ def initiation() -> Tuple[dict, dict]:
     face_dicts = support.get_faces()
 
     return cam_dicts, face_dicts
-
 
 def stream_thread_fun(deviceID: int, camURL: str):
     deviceId = deviceID
@@ -96,15 +84,15 @@ def stream_thread_fun(deviceID: int, camURL: str):
     if cap:
         cap.release()
 
-
 def detect_thread_fun():
     if share_param.devconfig["DEV"]["option_detection"] != 1:
         return
     totalTime = time.time()
 
     trackers = {}
-    # trackers = Tracking()
-
+    with open("face_recognition_sdk/modules/tracking/configs/deep_sort.json", 'r') as json_file:
+        cfg = json.load(json_file)
+    
     while True: 
         if not share_param.bRunning:
             time.sleep(1)
@@ -116,38 +104,11 @@ def detect_thread_fun():
         if share_param.stream_queue.empty():
             continue
 
-        raw_detect_inputs = []  # [[deviceId, rbg, frameID]]
+        detect_inputs = []  # [[deviceId, rbg, frameID]]
         preTime = time.time()
 
-        while not share_param.stream_queue.empty() and len(raw_detect_inputs)<share_param.batch_size:
-            raw_detect_inputs.append(share_param.stream_queue.get())
-
-        detect_inputs = []
-
-        preTime= time.time()
-        for id, (deviceId, rgb, FrameID) in enumerate(raw_detect_inputs):
-
-            if deviceId not in trackers:
-                trackers[deviceId] = Tracking()
-
-            if FrameID%5 != 0:
-                #Track only
-                
-                trackinfos = trackers[deviceId].update(rgb)
-                
-                for trackid, boxes in trackinfos:
-                    cv2.rectangle(rgb, (int(boxes[0]), int(boxes[1])), (int(boxes[0]+boxes[2]), int(boxes[1]+boxes[3])), (0, 255, 0), 2)
-                    cv2.putText(rgb, str(trackid), (int(boxes[0]), int(boxes[1])), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255), 2)
-                share_param.imshow_queue.put((str(deviceId), rgb))
-            else:
-                detect_inputs.append(raw_detect_inputs[id])
-        # print("TrackTime:", time.time() - preTime)
-        
-        raw_detect_inputs.clear()
-        del raw_detect_inputs
-
-        if len(detect_inputs) == 0:
-            continue
+        while not share_param.stream_queue.empty() and len(detect_inputs)<share_param.batch_size:
+            detect_inputs.append(share_param.stream_queue.get())
 
         preTime = time.time()
         rgbs = []
@@ -165,21 +126,30 @@ def detect_thread_fun():
 
         for bboxes, landmarks, (deviceId, rgb, frameID) in zip(bboxes_batch, landmarks_batch, detect_inputs):
             #Tracking
-            track_boxes = []
+            if deviceId not in trackers:
+                trackers[deviceId] = DeepSort(cfg["DEEPSORT"]["REID_CKPT"],
+                    max_dist=cfg["DEEPSORT"]["MAX_DIST"], min_confidence=cfg["DEEPSORT"]["MIN_CONFIDENCE"],
+                    nms_max_overlap=cfg["DEEPSORT"]["NMS_MAX_OVERLAP"], max_iou_distance=cfg["DEEPSORT"]["MAX_IOU_DISTANCE"],
+                    max_age=cfg["DEEPSORT"]["MAX_AGE"], n_init=cfg["DEEPSORT"]["N_INIT"], nn_budget=cfg["DEEPSORT"]["NN_BUDGET"],
+                    use_cuda=True)
+            bbox_xywh = []
+            confs = []
 
             #Keep for recogn
             bbox_keeps = []
             landmark_keeps = []
             faceCropExpand_keeps = []
 
-            #Draw tracking
-            # draw_bboxs = []
-            # draw_landmarks = []
 
             for bbox, landmark in zip(bboxes, landmarks):
                 x_l, y_t, x_r, y_b, conf = bbox 
-                boxx, boxy, boxw, boxh = x_l, y_t, x_r-x_l, y_b-y_t
-                track_boxes.append((boxx, boxy, boxw, boxh))
+                x_c = x_l + (x_r-x_l)/2
+                y_c = y_t + (y_b-y_t)/2
+                bbox_w = x_r - x_l
+                bbox_h = y_b - y_t
+                obj = [x_c, y_c, bbox_w, bbox_h]
+                bbox_xywh.append(obj)
+                confs.append([conf])
                 
                 if conf < 0.9:
                     continue
@@ -205,9 +175,6 @@ def detect_thread_fun():
                 faceCropExpand = rgb[int(expandTop):int(expandBottom), int(expandLeft):int(expandRight)].copy()
                 faceCropExpand_keeps.append(faceCropExpand)
 
-                # draw_bboxs.append(bbox)
-                # draw_landmarks.append(landmark)
-
                 #Mov abs position to faceCropExpand coordinate
                 relbox = [bbox[0]-expandLeft, bbox[1]-expandTop, bbox[2]-expandLeft, bbox[3]-expandTop, bbox[4]]
                 rellandmark = landmark.reshape((5,2), order= "F")
@@ -219,13 +186,22 @@ def detect_thread_fun():
             
             #Tracking
             preTime = time.time()
-            trackinfos = trackers[deviceId].newsession(rgb , track_boxes)
-            #Draw
-            for trackid, boxes in trackinfos:
-                cv2.rectangle(rgb, (int(boxes[0]), int(boxes[1])), (int(boxes[0]+boxes[2]), int(boxes[1]+boxes[3])), (0, 255, 0), 2)
-                cv2.putText(rgb, str(trackid), (int(boxes[0]), int(boxes[1])), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255), 2)
-            # for draw_bbox in draw_bboxs:
-            #     cv2.rectangle(rgb, (int(draw_bbox[0]), int(draw_bbox[1])), (int(draw_bbox[2]), int(draw_bbox[3])), (0, 255, 0), 2)
+            if len(bbox_xywh)>0 and len(confs)>0:
+                print("bbox_xywh", bbox_xywh)
+                print("confs", confs)
+                xywhs = torch.Tensor(bbox_xywh)
+                confss = torch.Tensor(confs)
+                outputs = trackers[deviceId].update(xywhs, confss, rgb)
+                print("outputs", outputs)
+                print("Tracking Time:", time.time() - preTime)
+
+                #Draw
+                for output in outputs:
+                    cv2.rectangle(rgb, (int(output[0]), int(output[1])), (int(output[2]), int(output[3])), (0, 255, 0), 2)
+                    cv2.putText(rgb, str(output[4]), (int(output[0]), int(output[1])), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255), 2)
+            else:
+                trackers[deviceId].increment_ages()
+    
 
             while share_param.imshow_queue.qsize() > share_param.IMSHOW_SIZE*share_param.batch_size:
                     share_param.imshow_queue.get()
@@ -333,7 +309,6 @@ def imshow_thread_fun():
             if share_param.devconfig["DEV"]["imshow"]:
                 cv2.imshow(title, image)
             cv2.waitKey(10)
-
 
 def main(args):
     folders_path = args["folders_path"]
